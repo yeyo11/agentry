@@ -86,3 +86,12 @@ test('team, journal, runs, documents and orchestrations drop the weight', () => 
   assert.deepEqual(docs, { root: 'docs', exists: true, fileCount: 1, tree: [{ path: 'docs/a', type: 'dir', fileCount: 1, children: [{ path: 'docs/a/b.md', type: 'file', title: 'B' }] }] });
   assert.deepEqual(orchestrationRows([{ id: 'o', status: 'done', tasks: [{ status: 'done' }, { status: 'failed' }], verification: { status: 'passed', commands: [] } }]), [{ id: 'o', status: 'done', tasks: { total: 2, done: 1, failed: 1 }, verification: 'passed' }]);
 });
+
+test('list_flow_runs takes the nextCursor it hands out, so a model can read the next page', async () => {
+  const first = (await s.call('list_flow_runs', { projectId: s.project.id, limit: 1 })).json as { nextCursor?: string };
+  const next = await s.call('list_flow_runs', { projectId: s.project.id, limit: 1, cursor: first.nextCursor ?? 'not-a-cursor' });
+  if (first.nextCursor) assert.equal(next.isError, false, next.text);
+  // A cursor the route cannot read is refused by the route, which proves the tool passed it on
+  const bad = await s.call('list_flow_runs', { projectId: s.project.id, cursor: 'not-a-cursor' });
+  assert.equal(bad.isError, true, bad.text);
+});

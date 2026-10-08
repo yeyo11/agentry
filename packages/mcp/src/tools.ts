@@ -133,11 +133,12 @@ export const TOOLS: readonly Tool[] = [
         status: str('Comma separated run statuses'),
         itemId: str('Only the runs of this work item id'),
         before: str('Only the runs before this date and time (ISO 8601)'),
+        cursor: str('The nextCursor of the previous page, to read the next one'),
         limit: int('How many to return', 1, PAGE_MAX),
       },
       ['projectId'],
     ),
-    run: async (args, api) => flowRunRows(await api.get(`/projects/${seg(need(args, 'projectId'))}/flow/runs`, pick(args, ['agent', 'role', 'status', 'itemId', 'before', 'limit']))),
+    run: async (args, api) => flowRunRows(await api.get(`/projects/${seg(need(args, 'projectId'))}/flow/runs`, pick(args, ['agent', 'role', 'status', 'itemId', 'before', 'cursor', 'limit']))),
   },
   {
     name: 'get_journal',
