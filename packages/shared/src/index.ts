@@ -9,3 +9,4 @@ export * from './chat-title.ts';
 export * from './work-items.ts';
 export * from './assistant.ts';
 export * from './effort.ts';
+export * from './dashboard-layout.ts';
