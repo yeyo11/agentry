@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Board, WorkItem, WorkItemLink } from '@agentry/shared';
 import {
+  filterChanges,
   searchBoxText,
   NEW_TASK_PATH,
   WORK_ITEM_COLUMNS,
@@ -185,4 +186,10 @@ test('the task search box keeps what is being typed when its own search comes ba
   // "Clear all", Back or a link replace it
   assert.equal(searchBoxText('fix', '', 'fix'), '');
   assert.equal(searchBoxText('fix', 'login', 'fix'), 'login');
+});
+
+test('a change to the task filters sets only the parameters of the fields it names', () => {
+  assert.deepEqual(filterChanges({ epicId: undefined }), { epic: null });
+  assert.deepEqual(filterChanges({ status: ['todo', 'in_progress'], q: 'fix' }), { status: 'todo,in_progress', q: 'fix' });
+  assert.deepEqual(filterChanges({}), {});
 });

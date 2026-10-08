@@ -169,23 +169,30 @@ export function useListParams(page: string, owned: readonly string[], scope: str
     () => (decision && !sameValues(decision.values, url) ? withValues(params, owned, decision.values) : params),
     [decision, params, url, owned],
   );
+  // The values the page shows now, also moved by patch and reset themselves: a patch fired from an
+  // effect that runs after a reset or another change, before the render that follows it, starts from
+  // them instead of from its own render's values, which would put back what that change took away
+  const current = useRef<ListValues>({});
+  current.current = pickValues(effective, owned);
 
   const patch = useCallback(
     (changes: Record<string, string | null>) => {
-      const values: Record<string, string> = { ...pickValues(effective, owned) };
+      const values: Record<string, string> = { ...current.current };
       for (const [name, value] of Object.entries(changes)) {
         if (value === null || value === '') delete values[name];
         else values[name] = value;
       }
+      current.current = values;
       // Stored before the address changes, so the render that follows finds them already agreeing
       if (key !== null) write(key, values);
       setParams((previous) => withValues(previous, owned, values), { replace: true });
       setRevision((r) => r + 1);
     },
-    [effective, key, setParams, owned],
+    [key, setParams, owned],
   );
 
   const reset = useCallback(() => {
+    current.current = {};
     if (key !== null) write(key, {});
     setParams((previous) => withValues(previous, owned, {}), { replace: true });
     setRevision((r) => r + 1);

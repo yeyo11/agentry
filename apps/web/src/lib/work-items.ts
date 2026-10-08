@@ -260,6 +260,17 @@ export function filtersToSearch(filters: TaskFilters, base: URLSearchParams = ne
 }
 
 /**
+ * The address parameters a change to the filters sets (`null` clears one), and only those: the
+ * others, taken from the render the change was made in, would undo a reset or a change made before a
+ * call from an effect (the board dropping a stray epic) runs.
+ */
+export function filterChanges(change: Partial<TaskFilters>): Record<string, string | null> {
+  const next = filtersToSearch(change);
+  const fields = Object.keys(change) as Array<keyof TaskFilters>;
+  return Object.fromEntries(fields.map((field) => [FILTER_PARAMS[field], next.get(FILTER_PARAMS[field])]));
+}
+
+/**
  * What the search box shows once the address's `q` changes. The box writes `q` a moment after the
  * typing stops, so by the time that `q` comes back the person may have typed on ("fix " while `fix`
  * was being written, or a key pressed between that render and its effect): a `q` the box sent itself,
