@@ -133,8 +133,7 @@
     "workflow": "workflow",
     "agentsDone": "{{done}}/{{total}} agents done",
     "result": "Result",
-    "script": "Script",
-    "agentsDoneLabel": "Agents done"
+    "script": "Script"
   },
   "detail": {
     "status": "Status",
