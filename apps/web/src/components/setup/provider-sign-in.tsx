@@ -25,7 +25,7 @@ export function useProviderSignIn() {
       // `no-probe` has no sign-in action of its own: a row with no key kept offers one here
       offerSignIn: canSignIn && status.state === 'unknown' && offersSignIn(status.state, status.reason, keyStored),
       open: openId === status.id,
-      signOut: tool && offersSignOut(methods, status.state, status.reason, keyStored) ? <SignOutButton tool={tool} label={status.label} /> : undefined,
+      signOut: tool && offersSignOut(methods, status.state, status.reason, keyStored) ? <SignOutButton tool={tool} label={status.label} keyOnly={methods?.signOutKeyOnly ?? false} /> : undefined,
     };
   };
 

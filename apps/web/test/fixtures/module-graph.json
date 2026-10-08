@@ -418,7 +418,7 @@
   "server-strings [connectorActionLabel, connectorLimitName, healthReason, localized, serverText, shownParams, signalHint, signalReason]",
   "settingsModel [GUIDED_KEYS, HOOK_EVENTS, HookCommand, HookGroup, Json, changedKeys, getIn, hookGroups, isObject, parseObject, setIn, stringList]",
   "settingsTabs [DecisionsSection, GROUPS, TAB_LABELS, TAB_ORDER, TabId, isTab, resolveTab]",
-  "setup [CODEX_DEVICE_SETTINGS, LoginFailure, PanelTool, READINESS_KEYS, SETUP_STEPS, START, SetupStep, StepMark, SummaryRow, TAILSCALE_KEYS_URL, VariableLabel, WizardState, advance, agentsReady, codeReady, failureOf, hostTool, installLink, isLive, isPanelTool, isSetupTool, keyLink, loginMethods, methodsOf, newerSession, offersChoice, offersSignIn, offersSignOut, retreat, stepMarks, summaryRows, tailscaleActions, tailscaleSignedIn, tailscaleTone, timeLeft, variableChoices, variableLabel]",
+  "setup [CODEX_DEVICE_SETTINGS, LoginFailure, PanelTool, READINESS_KEYS, SETUP_STEPS, START, SetupStep, StepMark, SummaryRow, TAILSCALE_KEYS_URL, VIA_LABEL, VariableLabel, WizardState, advance, agentsReady, codeReady, failureOf, hostTool, installLink, isLive, isPanelTool, isSetupTool, keyLink, loginMethods, methodsOf, newerSession, offersChoice, offersSignIn, offersSignOut, refusedKey, retreat, stepMarks, summaryRows, tailscaleActions, tailscaleSignedIn, tailscaleTone, timeLeft, variableChoices, variableLabel]",
   "shell [paintShell]",
   "shell-live [FabPlan, LimitReading, LiveChatInput, LiveItem, LiveOrchestrationInput, LiveSummary, MoreNote, MoreNotesInput, cardProvider, chatActivity, fabFor, hidesTabBar, hidesTopBar, limitReading, liveSummary, moreNotes, orchestrationProgress]",
   "shortcut [isApple, shortcut]",

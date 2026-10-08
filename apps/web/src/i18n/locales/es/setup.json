@@ -118,7 +118,7 @@
       "envPlain": "Se guarda en un archivo que solo puede leer el usuario del servidor, y solo la reciben los procesos de {{label}}. No se vuelve a mostrar.",
       "opencode": "OpenCode usa la clave del proveedor que elijas; Agentry la guarda y se la da en esa variable.",
       "codex": "Codex la guarda en su propia configuración; Agentry no se queda con una copia.",
-      "copilot": "Un token de grano fino con el permiso Copilot Requests. Copilot lo guarda en su configuración; Agentry no se queda con una copia.",
+      "copilot": "Un token de grano fino con el permiso Copilot Requests; un token clásico (ghp_…) no sirve.",
       "gh": "Con los permisos repo, read:org y workflow. gh lo guarda en su propia configuración; Agentry no se queda con una copia.",
       "glab": "Con los permisos api y write_repository. glab lo guarda en su propia configuración; Agentry no se queda con una copia.",
       "tailscale": "Basta con usarla una vez: Tailscale mantiene la sesión de esta máquina con una clave propia y Agentry no se queda con una copia. Llega a Tailscale por un archivo que solo él puede leer y que se borra justo después."
@@ -131,6 +131,10 @@
     "getCode": "Pedir un código",
     "codexNote": "Si ChatGPT no deja entrar con un código, activa antes el inicio de sesión con código de dispositivo en los ajustes de seguridad de tu cuenta de ChatGPT.",
     "codexLink": "Abrir los ajustes de ChatGPT",
+    "viaNote": "{{label}} usa tu sesión de {{via}} ({{cli}}). Este código inicia la sesión de {{cli}} en {{host}}, y desde entonces {{label}} funciona con ella.",
+    "refused": {
+      "classicToken": "Copilot no admite un token clásico (ghp_…). Crea uno de grano fino con el permiso Copilot Requests."
+    },
     "starting": "Pidiendo un código a {{label}}…",
     "startingLink": "Pidiendo a {{label}} un enlace para iniciar sesión…",
     "open": "Abre esta página en cualquier dispositivo:",
@@ -172,6 +176,7 @@
     "aria": "Cerrar sesión en {{label}}",
     "title": "¿Cerrar sesión en {{label}}?",
     "body": "Agentry deja de usar {{label}} hasta que alguien vuelva a iniciar sesión, y sus chats en marcha pueden fallar.",
+    "bodyKey": "Agentry olvida la clave que guarda para {{label}}. Si {{label}} no tiene otra sesión iniciada, deja de funcionar y sus chats en marcha pueden fallar.",
     "bodyHost": "{{cli}} olvida su sesión en {{host}}. Agentry no puede leer ni fusionar las PR o las MR de allí hasta que alguien vuelva a iniciar sesión.",
     "done": "Sesión cerrada en {{label}}",
     "failed": "No se ha podido cerrar la sesión en {{label}}",

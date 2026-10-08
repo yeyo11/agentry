@@ -13,11 +13,14 @@ import {
   CODEX_DEVICE_SETTINGS,
   failureOf,
   installLink,
+  isPanelTool,
   keyLink,
   loginMethods,
   methodsOf,
   offersChoice,
+  refusedKey,
   timeLeft,
+  VIA_LABEL,
   variableChoices,
   variableLabel,
   type LoginFailure,
@@ -81,6 +84,9 @@ function Panel({ tool, label, host = null, layout = 'inline', closable = false, 
   const { session } = login;
   const failure = failureOf(session);
   const hostName = hostDraft.trim();
+  // Copilot's Code is gh's sign-in to github.com: the panel names who is really asked for a code
+  const via = methods.deviceVia;
+  const viaLabel = via ? (VIA_LABEL[via.tool] ?? via.tool) : null;
 
   const startDevice = useCallback(() => {
     login.start({ tool, method: 'device', ...(methods.needsHost ? { host: hostName } : {}) });
@@ -138,7 +144,7 @@ function Panel({ tool, label, host = null, layout = 'inline', closable = false, 
       <>
         <FailureAction
           failure={failure}
-          tool={tool}
+          tool={isPanelTool(session.tool) ? session.tool : tool}
           primary={layout === 'sheet'}
           onRetry={() => (session.method === 'device' ? startDevice() : login.reset())}
           onUseKey={() => choose('key')}
@@ -152,6 +158,7 @@ function Panel({ tool, label, host = null, layout = 'inline', closable = false, 
     body = (
       <>
         {tool === 'codex' && <CodexNote />}
+        {via && viaLabel && <p className="signin-note">{t('panel.viaNote', { label, via: viaLabel, cli: via.tool, host: via.host ?? '' })}</p>}
         {session?.state === 'waiting-for-person' && session.url ? (
           <DeviceCode session={session} label={label} />
         ) : askingHost ? (
@@ -160,7 +167,7 @@ function Panel({ tool, label, host = null, layout = 'inline', closable = false, 
           <div className="signin-wait signin-starting" role="status">
             <Spinner />
             {/* Tailscale's sign-in is a link to open, with no code */}
-            {tool === 'tailscale' ? t('panel.startingLink', { label }) : t('panel.starting', { label })}
+            {tool === 'tailscale' ? t('panel.startingLink', { label }) : t('panel.starting', { label: viaLabel ?? label })}
           </div>
         )}
         <ErrorBox error={login.startError} title={t('panel.startFailed')} />
@@ -465,7 +472,8 @@ function KeyForm({
   const [variable, setVariable] = useState<string>(variables[0] ?? methods.variables[0] ?? '');
   const [secret, setSecret] = useState('');
   const typed = secret.trim();
-  const canSave = typed !== '' && (!methods.needsHost || host.trim() !== '') && !busy;
+  const refused = refusedKey(tool, typed);
+  const canSave = typed !== '' && refused === null && (!methods.needsHost || host.trim() !== '') && !busy;
   const claudeApiKey = tool === 'claude-code' && variable === 'ANTHROPIC_API_KEY';
   const link = keyLink(tool, host);
 
@@ -482,15 +490,20 @@ function KeyForm({
         : 'sk-ant-oat01-…'
       : tool === 'tailscale'
         ? 'tskey-auth-…'
-        : methods.key === 'stdin'
+        : tool === 'copilot'
+          ? 'github_pat_…'
+          : methods.key === 'stdin'
           ? t('panel.pasteToken')
           : t('panel.pasteKey');
+  const kept = t(sealed ? 'panel.hint.envSealed' : 'panel.hint.envPlain', { label });
   const hint =
     tool === 'opencode'
       ? t('panel.hint.opencode')
-      : methods.key === 'env'
-        ? t(sealed ? 'panel.hint.envSealed' : 'panel.hint.envPlain', { label })
-        : t(`panel.hint.${tool as 'codex' | 'copilot' | 'gh' | 'glab' | 'tailscale'}`);
+      : tool === 'copilot'
+        ? `${t('panel.hint.copilot')} ${kept}`
+        : methods.key === 'env'
+          ? kept
+          : t(`panel.hint.${tool as 'codex' | 'gh' | 'glab' | 'tailscale'}`);
 
   const submit = () => {
     if (!canSave) return;
@@ -541,7 +554,13 @@ function KeyForm({
       {tool !== 'claude-code' && link && (
         <ExternalText href={link}>{t(`panel.link.${tool as 'codex' | 'gemini' | 'copilot' | 'gh' | 'glab' | 'tailscale'}`, { host: host.trim() || methods.defaultHost || '' })}</ExternalText>
       )}
-      <span className="form-hint">{hint}</span>
+      {refused ? (
+        <span className="field-error" role="alert">
+          {t(`panel.refused.${refused}`)}
+        </span>
+      ) : (
+        <span className="form-hint">{hint}</span>
+      )}
       <ErrorBox error={error} title={t('panel.startFailed')} />
       <div className={layout === 'sheet' ? 'prov-sheet-actions' : 'signin-actions'}>
         <button type="submit" className={layout === 'sheet' ? 'btn btn-primary' : 'btn'} disabled={!canSave}>

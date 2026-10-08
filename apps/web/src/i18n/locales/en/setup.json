@@ -118,7 +118,7 @@
       "envPlain": "Kept in a file only the server's user can read, and only {{label}}'s processes receive it. It is not shown again.",
       "opencode": "OpenCode uses the key of the provider you choose; Agentry keeps it and hands it over in that variable.",
       "codex": "Codex keeps it in its own configuration; Agentry keeps no copy.",
-      "copilot": "A fine-grained token with the Copilot Requests permission. Copilot keeps it in its configuration; Agentry keeps no copy.",
+      "copilot": "A fine-grained token with the Copilot Requests permission; a classic token (ghp_…) does not work.",
       "gh": "With the repo, read:org and workflow scopes. gh keeps it in its own configuration; Agentry keeps no copy.",
       "glab": "With the api and write_repository scopes. glab keeps it in its own configuration; Agentry keeps no copy.",
       "tailscale": "One use is enough: Tailscale keeps this machine signed in with a key of its own, and Agentry keeps no copy. It reaches Tailscale through a file only it can read, removed right after."
@@ -131,6 +131,10 @@
     "getCode": "Get a code",
     "codexNote": "If ChatGPT does not let you in with a code, first turn on device code sign-in in your ChatGPT account's security settings.",
     "codexLink": "Open ChatGPT's settings",
+    "viaNote": "{{label}} uses your {{via}} sign-in ({{cli}}). This code signs {{cli}} in to {{host}}, and {{label}} works with it from then on.",
+    "refused": {
+      "classicToken": "Copilot does not take a classic token (ghp_…). Create a fine-grained one with the Copilot Requests permission."
+    },
     "starting": "Asking {{label}} for a code…",
     "startingLink": "Asking {{label}} for a sign-in link…",
     "open": "Open this page on any device:",
@@ -172,6 +176,7 @@
     "aria": "Sign out of {{label}}",
     "title": "Sign out of {{label}}?",
     "body": "Agentry stops using {{label}} until someone signs in again, and its chats that are running may fail.",
+    "bodyKey": "Agentry forgets the key it keeps for {{label}}. If {{label}} has no other sign-in, it stops working and its running chats may fail.",
     "bodyHost": "{{cli}} forgets its sign-in to {{host}}. Agentry cannot read or merge the PRs or MRs there until someone signs in again.",
     "done": "Signed out of {{label}}",
     "failed": "Could not sign out of {{label}}",

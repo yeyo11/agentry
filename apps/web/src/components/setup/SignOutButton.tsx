@@ -12,7 +12,7 @@ import { READINESS_KEYS } from '../../lib/setup';
  * someone signs in again), so the confirmation is the danger one. A code host signs out of one host.
  * The vendor's own command does it where there is one (`DELETE /setup/credentials/:tool`).
  */
-export function SignOutButton({ tool, label, host, small = false }: { tool: SetupTool; label: string; host?: string; small?: boolean }) {
+export function SignOutButton({ tool, label, host, small = false, keyOnly = false }: { tool: SetupTool; label: string; host?: string; small?: boolean; keyOnly?: boolean }) {
   const { t } = useTranslation('setup');
   const confirm = useConfirm();
   const toast = useToast();
@@ -31,7 +31,8 @@ export function SignOutButton({ tool, label, host, small = false }: { tool: Setu
   const ask = async () => {
     const ok = await confirm({
       title: t('signOut.title', { label: host ?? label }),
-      body: host ? t('signOut.bodyHost', { cli: tool, host }) : t('signOut.body', { label }),
+      // A sign-out that only forgets the kept key says so: Copilot may go on working on gh's sign-in
+      body: host ? t('signOut.bodyHost', { cli: tool, host }) : keyOnly ? t('signOut.bodyKey', { label }) : t('signOut.body', { label }),
       confirmLabel: t('signOut.action'),
       danger: true,
     });

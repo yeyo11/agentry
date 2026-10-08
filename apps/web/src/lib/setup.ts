@@ -159,12 +159,25 @@ export const offersSignIn = (state: ProviderReadinessState, reason: ProviderReas
 
 /**
  * Whether a row offers Sign out: the tool works, or it reads `no-probe` because a key Agentry keeps
- * is all it has (Gemini, OpenCode) and one is kept, and the vendor documents a way out (not Copilot).
+ * is all it has (Gemini, OpenCode) and one is kept. Where signing out only forgets that key
+ * (`signOutKeyOnly`: Gemini, OpenCode, Copilot) it is offered only while one is kept: a Copilot
+ * that works on its own `copilot login` or on gh's sign-in has nothing here to sign out of.
  */
 export function offersSignOut(methods: SetupToolMethods | null, state: ProviderReadinessState, reason: ProviderReasonCode | null = null, keyStored = false): boolean {
   if (!methods?.signOut) return false;
+  if (methods.signOutKeyOnly && !keyStored) return false;
   return state === 'ready' || state === 'degraded' || (state === 'unknown' && reason === 'no-probe' && keyStored);
 }
+
+/** What the CLI a sign-in borrows is called in the panel: Copilot's Code signs in GitHub's `gh` */
+export const VIA_LABEL: Readonly<Partial<Record<SetupTool, string>>> = { gh: 'GitHub', glab: 'GitLab' };
+
+/**
+ * A classic personal access token (`ghp_`), which Copilot does not take (GitHub's docs: fine-grained
+ * tokens with the Copilot Requests permission, or an OAuth token of the Copilot or gh app). The
+ * server refuses it too; the panel says why before it is sent.
+ */
+export const refusedKey = (tool: SetupTool, key: string): 'classicToken' | null => (tool === 'copilot' && key.trim().startsWith('ghp_') ? 'classicToken' : null);
 
 // ---------------------------------------------------------------- Tailscale
 
