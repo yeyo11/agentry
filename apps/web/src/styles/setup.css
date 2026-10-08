@@ -1,0 +1,538 @@
+/* The in-app setup (docs/plans/in-app-setup.md): the assistant, the sign-in panel and the secrets line.
+   Ported from agentry-ds.css, "Setup", under the app's own names where the reference's collide with the
+   sign-in screen (.signin, .signin-head) or the stepper (.steps, .step): see design-system.md, "Setup".
+   The assistant is the first run's page (.prov-first) with a step bar on top; its gradient surfaces are
+   the logo and Continue. While a device-code sign-in waits, its box (.signin-device) is the screen's one
+   live surface and carries .live-energy; nothing else moves. */
+
+/* ---- the step bar ---- */
+
+.setup-steps {
+  display: flex;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.setup-step {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.setup-step::before {
+  content: '';
+  height: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-4);
+}
+
+.setup-step.is-done::before {
+  background: var(--fg-3);
+}
+
+.setup-step.is-current::before {
+  background: var(--fg);
+}
+
+/* Skipping fails nothing: a dotted bar and the word, never a status colour */
+.setup-step.is-skipped::before {
+  height: 0;
+  margin-top: 1px;
+  background: none;
+  border-top: 2px dotted var(--fg-3);
+}
+
+.setup-step-name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--fg-3);
+}
+
+.setup-step-name .n {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.setup-step.is-current .setup-step-name {
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.setup-step.is-done .setup-step-name {
+  color: var(--fg-2);
+}
+
+.setup-step-skip {
+  margin-top: -4px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+}
+
+/* A phone keeps the bars only: the names stay for screen readers, and the header names the step */
+.setup-steps-bare .setup-step {
+  gap: 0;
+}
+
+.setup-steps-bare .setup-step-name,
+.setup-steps-bare .setup-step-skip {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---- the page and its foot ---- */
+
+.setup-page .prov-first-intro p {
+  max-width: 640px;
+}
+
+.setup-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.setup-page .prov-first-brand .section-label {
+  white-space: nowrap;
+}
+
+/* The phone's foot: Continue first and full width, Back and Skip under it */
+.prov-first-foot.setup-m-foot {
+  flex-direction: column;
+}
+
+.setup-m-foot .btn-primary {
+  width: 100%;
+}
+
+.setup-m-foot-row {
+  display: flex;
+  gap: 8px;
+}
+
+.setup-m-foot-row .btn {
+  flex: 1 1 0;
+}
+
+/* A phone's rows: Sign in fills the cell, 44 px tall */
+.setup-page .prov-cell .prov-actions .btn {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+
+/* ---- the Access card ---- */
+
+.setup-access {
+  gap: 14px;
+}
+
+.setup-access > .segmented {
+  align-self: flex-start;
+}
+
+.setup-access p {
+  margin: 0;
+}
+
+.setup-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.setup-card-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* A generated token, shown once: neutral, since nothing went wrong */
+.token-once {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-2);
+}
+
+.token-once-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.token-once-row code {
+  padding: 6px 8px;
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+/* ---- the sign-in panel ---- */
+
+.prov-bin.signin-panel {
+  gap: 12px;
+  padding-left: 68px;
+}
+
+.signin-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+}
+
+.signin-form,
+.signin-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.signin-choice {
+  align-self: flex-start;
+}
+
+.signin-choice.wide {
+  display: flex;
+  align-self: stretch;
+}
+
+.signin-choice.wide .segment {
+  flex: 1 1 0;
+}
+
+.signin-note {
+  margin: 0;
+  max-width: 640px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--fg-2);
+}
+
+.signin-note code {
+  color: var(--fg);
+}
+
+.signin-link {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 5px;
+  font-size: 13px;
+}
+
+.signin-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* OpenCode's field is named by its variable, as the CLI reads it */
+.field-variable .field-label {
+  text-transform: none;
+}
+
+.signin-device {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px 24px;
+  align-items: center;
+  padding: 16px 18px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-2);
+}
+
+.signin-device .signin-wait {
+  grid-column: 1 / -1;
+}
+
+.signin-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--fg-2);
+}
+
+.signin-steps li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.signin-steps .n {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.signin-url {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+
+.signin-code-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.signin-code {
+  font-family: var(--mono);
+  font-size: 34px;
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.signin-wait {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--fg-2);
+}
+
+.signin-wait .spinner-glyph {
+  color: var(--live);
+}
+
+.signin-wait .left {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Asking for a code: the spinner beside the verb, with no box and no energy yet */
+.signin-wait.signin-starting {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.signin-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  background: var(--bad-soft);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--fg);
+}
+
+.signin-result > .ico {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--bad);
+}
+
+/* The code only ran out: it has to be asked for again, nothing broke */
+.signin-result.warn {
+  background: var(--warn-soft);
+}
+
+.signin-result.warn > .ico {
+  color: var(--warn);
+}
+
+.signin-result-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.signin-result .mono {
+  font-size: 11.5px;
+  color: var(--fg-2);
+}
+
+/* A host's own sign-in or sign-out, at the end of its line under the row */
+.host-known li .btn-small {
+  margin-left: auto;
+}
+
+/* ---- the secrets line ---- */
+
+.card-title-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-title-icon svg {
+  color: var(--fg-3);
+}
+
+.secrets-warning .alert-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--fg-2);
+}
+
+.secrets-warning .alert-body strong {
+  color: var(--fg);
+  font-weight: 500;
+}
+
+/* ---- Done ---- */
+
+.setup-done-head {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.setup-done-head .il {
+  flex-shrink: 0;
+}
+
+.setup-done-head.phone {
+  flex-direction: column;
+  gap: 6px;
+  text-align: center;
+}
+
+.setup-sum-row {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto minmax(0, 220px);
+  gap: 14px;
+  align-items: center;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.setup-sum-row:last-child {
+  border-bottom: 0;
+}
+
+.setup-sum-ico {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  color: var(--fg-2);
+}
+
+.setup-sum-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.setup-sum-name {
+  font-weight: 500;
+}
+
+.setup-sum-detail {
+  font-size: 13px;
+  color: var(--fg-2);
+}
+
+.setup-where {
+  justify-self: end;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-2);
+  text-decoration: none;
+}
+
+.setup-where:hover {
+  color: var(--fg);
+  text-decoration: underline;
+}
+
+/* ---- a phone ---- */
+
+@media (max-width: 900px) {
+  .signin-device {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 14px;
+  }
+
+  .signin-code-box {
+    justify-content: space-between;
+  }
+
+  .signin-url {
+    min-height: var(--touch);
+    font-size: 14px;
+  }
+
+  .signin-note,
+  .signin-steps,
+  .signin-link {
+    font-size: 14px;
+  }
+
+  .signin-link {
+    min-height: var(--touch);
+  }
+
+  .signin-sheet .btn,
+  .signin-sheet .segment,
+  .setup-page .btn {
+    min-height: var(--touch);
+    justify-content: center;
+  }
+
+  /* No zoom on focus: a field under 16 px makes iOS zoom the page */
+  .signin-sheet input,
+  .setup-page input {
+    font-size: 16px;
+  }
+
+  .setup-sum-row {
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    padding: 12px 14px;
+  }
+
+  .setup-sum-row .setup-where {
+    grid-column: 2 / -1;
+    justify-self: start;
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--touch);
+    margin: -8px 0 -12px;
+    font-size: 12px;
+  }
+}

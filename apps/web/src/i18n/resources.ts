@@ -24,6 +24,7 @@ import enProviders from './locales/en/providers.json';
 import enReviews from './locales/en/reviews.json';
 import enSchedules from './locales/en/schedules.json';
 import enServer from './locales/en/server.json';
+import enSetup from './locales/en/setup.json';
 import enShell from './locales/en/shell.json';
 import enSuggestion from './locales/en/suggestion.json';
 import enTasks from './locales/en/tasks.json';
@@ -54,6 +55,7 @@ import esProviders from './locales/es/providers.json';
 import esReviews from './locales/es/reviews.json';
 import esSchedules from './locales/es/schedules.json';
 import esServer from './locales/es/server.json';
+import esSetup from './locales/es/setup.json';
 import esShell from './locales/es/shell.json';
 import esSuggestion from './locales/es/suggestion.json';
 import esTasks from './locales/es/tasks.json';
@@ -90,6 +92,7 @@ export const en = {
   orchestrationV2: enOrchestrationV2,
   connectors: enConnectors,
   server: enServer,
+  setup: enSetup,
   shell: enShell,
   tasks: enTasks,
   team: enTeam,
@@ -130,6 +133,7 @@ export const es = {
   orchestrationV2: esOrchestrationV2,
   connectors: esConnectors,
   server: esServer,
+  setup: esSetup,
   shell: esShell,
   tasks: esTasks,
   team: esTeam,

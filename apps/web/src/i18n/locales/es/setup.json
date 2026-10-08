@@ -1,0 +1,171 @@
+{
+  "label": "Configuración · paso {{n}} de {{total}}",
+  "skipAll": "Omitir la configuración",
+  "labelPhone": "{{n}} de {{total}} · {{name}}",
+  "steps": {
+    "aria": "Pasos de la configuración",
+    "access": "Acceso",
+    "agents": "Agentes",
+    "code": "Código y tareas",
+    "done": "Listo",
+    "skipped": "omitido"
+  },
+  "foot": {
+    "back": "Volver",
+    "skip": "Omitir",
+    "continue": "Continuar",
+    "start": "Empezar a usar Agentry",
+    "ready_one": "{{count}} de {{total}} listo",
+    "ready_other": "{{count}} de {{total}} listos",
+    "later": "Lo cambias cuando quieras en Ajustes → Seguridad."
+  },
+  "access": {
+    "title": "Quién puede abrir Agentry",
+    "intro": {
+      "none": "Ahora mismo cualquiera que llegue a este puerto puede usarlo. Si Agentry corre en un servidor o en una red, pide un token.",
+      "token": "Toda petición tiene que llevar el token. Déjalo así si Agentry corre en un servidor o en una red.",
+      "oidc": "Toda petición tiene que llevar un inicio de sesión de tu proveedor de identidad (OIDC)."
+    },
+    "introPhone": "Si corre en un servidor o en una red, pide un token.",
+    "body": "Toda petición debe llevar el token. Con “Ninguno”, cualquiera que llegue al puerto puede usar Agentry: vale en tu propio equipo, no en una red.",
+    "oidc": "OIDC está activado. Se cambia en Ajustes → Seguridad.",
+    "more": "OIDC y el modo solo lectura están en Ajustes → Seguridad.",
+    "shownOnceBody": "Solo se muestra esta vez. Este navegador ya lo usa; cualquier otra cosa que llame a la API lo necesitará.",
+    "generateAnother": "Generar otro",
+    "readOnly": "Agentry está en modo solo lectura: el acceso no se puede cambiar desde aquí."
+  },
+  "agents": {
+    "title": "Inicia sesión en tus agentes",
+    "intro": "Cada agente usa su propia cuenta. Inicia sesión aquí, con un código o con una clave: no hace falta abrir una terminal en el servidor.",
+    "introPhone": "Con un código o con una clave, sin abrir una terminal en el servidor.",
+    "aria": "Agentes"
+  },
+  "code": {
+    "title": "Conecta tu código y tus tareas",
+    "intro": "GitHub y GitLab para las PR y las MR de tus proyectos; YouTrack para traer sus tareas. Todo es opcional.",
+    "introPhone": "GitHub y GitLab para las PR y las MR; YouTrack para sus tareas. Todo es opcional.",
+    "aria": "Código y tareas"
+  },
+  "done": {
+    "title": "Agentry está listo",
+    "intro": "Esto es lo que ha quedado hecho. Lo que has omitido sigue en Ajustes, en el mismo panel que has visto aquí, y no vuelve a salir este asistente.",
+    "introPhone": "Lo que has omitido sigue en Ajustes, en el mismo panel.",
+    "aria": "Resumen",
+    "access": "Acceso",
+    "skipped": "Omitido",
+    "open": "Abierto",
+    "onHost": "{{user}} en {{host}}",
+    "noAccount": "Sin cuenta",
+    "notConnected": "Sin conectar",
+    "where": {
+      "security": "Ajustes → Seguridad",
+      "providers": "Ajustes → Proveedores",
+      "integrations": "Ajustes → Integraciones"
+    }
+  },
+  "panel": {
+    "title": "Iniciar sesión en {{label}}",
+    "method": "Cómo iniciar sesión",
+    "methods": {
+      "device": "Código",
+      "key": "Clave"
+    },
+    "variable": "Qué vas a pegar",
+    "variableProvider": "Proveedor de la clave",
+    "variables": {
+      "oauthToken": "Token de OAuth",
+      "apiKey": "Clave de API"
+    },
+    "host": "Host",
+    "hostAria": "Host de {{label}}",
+    "pasteKey": "Pega la clave",
+    "pasteToken": "Pega el token",
+    "field": {
+      "codex": "Clave de API de OpenAI",
+      "gemini": "Clave de API de Gemini",
+      "copilot": "Token de GitHub",
+      "gh": "Token de acceso personal",
+      "glab": "Token de acceso personal"
+    },
+    "link": {
+      "claude-code": "Cómo se crea el token",
+      "codex": "Crear una clave en platform.openai.com",
+      "gemini": "Crear una clave en aistudio.google.com",
+      "copilot": "Crear un token en github.com",
+      "gh": "Crear un token en {{host}}",
+      "glab": "Crear un token en {{host}}"
+    },
+    "hint": {
+      "envSealed": "Se guarda cifrada y solo la reciben los procesos de {{label}}. No se vuelve a mostrar.",
+      "envPlain": "Se guarda en un archivo que solo puede leer el usuario del servidor, y solo la reciben los procesos de {{label}}. No se vuelve a mostrar.",
+      "opencode": "OpenCode usa la clave del proveedor que elijas; Agentry la guarda y se la da en esa variable.",
+      "codex": "Codex la guarda en su propia configuración; Agentry no se queda con una copia.",
+      "copilot": "Un token de grano fino con el permiso Copilot Requests. Copilot lo guarda en su configuración; Agentry no se queda con una copia.",
+      "gh": "Con los permisos repo, read:org y workflow. gh lo guarda en su propia configuración; Agentry no se queda con una copia.",
+      "glab": "Con los permisos api y write_repository. glab lo guarda en su propia configuración; Agentry no se queda con una copia."
+    },
+    "claude": "Claude Code no tiene un inicio de sesión que Agentry pueda hacer por ti. En <b>tu propio ordenador</b>, donde ya usas Claude, ejecuta <code>claude setup-token</code> en una terminal: abre el navegador, entras con tu suscripción y te muestra un token que dura un año. Pégalo aquí.",
+    "claudeApiKey": "Una clave de API de Anthropic se cobra a la cuenta de la API a la que pertenece, no a tu suscripción.",
+    "save": "Guardar y comprobar",
+    "saving": "Comprobando…",
+    "cancel": "Cancelar",
+    "getCode": "Pedir un código",
+    "codexNote": "Si ChatGPT no deja entrar con un código, activa antes el inicio de sesión con código de dispositivo en los ajustes de seguridad de tu cuenta de ChatGPT.",
+    "codexLink": "Abrir los ajustes de ChatGPT",
+    "starting": "Pidiendo un código a {{label}}…",
+    "open": "Abre esta página en cualquier dispositivo:",
+    "type": "Escribe este código y aprueba el acceso.",
+    "codeAria": "Código de {{label}}",
+    "copyCode": "Copiar el código",
+    "waiting": "Esperando a que lo apruebes",
+    "expiresIn": "caduca en {{left}}",
+    "opensNewTab": "se abre en una pestaña nueva",
+    "fail": {
+      "cli-refused": "{{label}} ha rechazado el inicio de sesión. Si era una clave, comprueba que es correcta y no ha caducado.",
+      "not-signed-in": "El comando ha terminado, pero {{label}} sigue sin sesión.",
+      "no-code": "{{label}} ha terminado sin mostrar un código. Prueba con una clave.",
+      "cli-missing": "No se encuentra el programa de {{label}} en este equipo.",
+      "spawn-failed": "No se ha podido iniciar {{label}}.",
+      "timeout": "{{label}} no ha respondido a tiempo y Agentry lo ha detenido.",
+      "expired": "El código ha caducado: nadie lo aprobó en 15 minutos."
+    },
+    "action": {
+      "retry": "Reintentar",
+      "use-key": "Usar una clave",
+      "install": "Ver instalación",
+      "new-code": "Pedir otro código"
+    },
+    "signedIn": "Sesión iniciada en {{label}}",
+    "startFailed": "No se ha podido empezar el inicio de sesión"
+  },
+  "row": {
+    "signIn": "Iniciar sesión",
+    "signInAria": "Iniciar sesión en {{label}}",
+    "addHost": "Añadir otro host"
+  },
+  "signOut": {
+    "action": "Cerrar sesión",
+    "aria": "Cerrar sesión en {{label}}",
+    "title": "¿Cerrar sesión en {{label}}?",
+    "body": "Agentry deja de usar {{label}} hasta que alguien vuelva a iniciar sesión, y sus chats en marcha pueden fallar.",
+    "bodyHost": "{{cli}} olvida su sesión en {{host}}. Agentry no puede leer ni fusionar las PR o las MR de allí hasta que alguien vuelva a iniciar sesión.",
+    "done": "Sesión cerrada en {{label}}",
+    "failed": "No se ha podido cerrar la sesión en {{label}}",
+    "unsupported": "{{label}} no documenta cómo cerrar sesión desde un programa."
+  },
+  "secrets": {
+    "title": "Secretos",
+    "sealed": "cifrados",
+    "plain": "sin cifrar",
+    "body": "Las claves de los agentes, el token de YouTrack y lo que pegas al iniciar sesión se guardan cifrados en <mono>secrets.json</mono>, y cada uno solo llega a los procesos de su herramienta. Nunca se muestran, ni en un registro ni en una respuesta de la API.",
+    "bodyPlain": "Las claves de los agentes, el token de YouTrack y lo que pegas al iniciar sesión se guardan en <mono>secrets.json</mono>, que solo puede leer el usuario del servidor, y cada uno solo llega a los procesos de su herramienta. Nunca se muestran, ni en un registro ni en una respuesta de la API.",
+    "besideTitle": "La clave está junto a los datos",
+    "besideBody": "Agentry la creó en su carpeta de datos (<mono>secret.key</mono>) porque no recibió ninguna. Protege una copia de los archivos, como una copia de seguridad, pero no el volumen: quien lea el volumen tiene las dos cosas.",
+    "recommend": "Recomendado: pasa la clave en la variable de entorno <mono>AGENTRY_SECRET_KEY</mono> y guárdala fuera del volumen.",
+    "plainTitle": "Los secretos se guardan sin cifrar",
+    "plainBody": "No hay clave (una app de escritorio sin llavero, o una instalación desde el código), así que los valores se guardan tal cual, en un archivo con permisos 0600. Pasa una clave en <mono>AGENTRY_SECRET_KEY</mono> para cifrarlos.",
+    "how": "Cómo pasar la clave",
+    "setupTitle": "Las claves que guardes se cifran, pero la clave está junto a los datos",
+    "setupBody": "Protege una copia de los archivos, no el volumen. Pasa la clave en <mono>AGENTRY_SECRET_KEY</mono> para que viva fuera de él."
+  }
+}

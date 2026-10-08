@@ -18,6 +18,8 @@
  *      (components/observe/*)
  *    - `orchestrationV2`: relaunch, re-run, templates, per-task limits and the verification card
  *    - `connectors`: the Connectors page
+ *    - `setup`: the setup assistant, the sign-in panel of every tool, sign-out and the secrets line
+ *      (components/setup/*)
  *    - `config`: pages/config/* (settings, MCP, resources, files, plugins) and the
  *      wording of the previous Orchestration pages that the two above still reuse
  *    - `components`: components/**, the App.tsx shell and navigation, CommandPalette, notifications
