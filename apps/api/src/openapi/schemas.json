@@ -5636,6 +5636,9 @@
         "$ref": "#/components/schemas/SettingsChangedEvent"
       },
       {
+        "$ref": "#/components/schemas/DashboardLayoutChangedEvent"
+      },
+      {
         "$ref": "#/components/schemas/TunnelChangedEvent"
       },
       {
@@ -9576,6 +9579,102 @@
       "runtime"
     ],
     "description": "The hosts the guard answers to besides loopback, by who put each one there. Unlike the other settings, the layers add up: what the guard answers is all three together."
+  },
+  "DashboardLayoutChangedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "dashboard.layout"
+      },
+      "project": {
+        "type": "string"
+      },
+      "layout": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/DashboardLayout"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "layout",
+      "project",
+      "title",
+      "type"
+    ],
+    "description": "A Home's layout was saved or reset, from any tab: every other tab redraws from it."
+  },
+  "DashboardLayout": {
+    "type": "object",
+    "properties": {
+      "version": {
+        "type": "number",
+        "const": 1
+      },
+      "widgets": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/LayoutWidget"
+        },
+        "description": "In the order they are drawn within their area"
+      }
+    },
+    "required": [
+      "version",
+      "widgets"
+    ]
+  },
+  "LayoutWidget": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "Unique within a layout: two widgets of one type can live side by side with different configs"
+      },
+      "type": {
+        "type": "string"
+      },
+      "size": {
+        "$ref": "#/components/schemas/WidgetSize"
+      },
+      "config": {
+        "type": "object",
+        "additionalProperties": {},
+        "description": "What this instance was set up with; each widget type reads only the keys it knows"
+      }
+    },
+    "required": [
+      "id",
+      "type",
+      "size"
+    ]
+  },
+  "WidgetSize": {
+    "type": "string",
+    "enum": [
+      "s",
+      "m",
+      "l",
+      "full"
+    ]
   },
   "TunnelChangedEvent": {
     "type": "object",
@@ -18857,6 +18956,34 @@
       }
     },
     "description": "`PUT /settings/app`: the settings to change, and only those. A setting the environment set is refused rather than written to the file, where it would do nothing until the variable goes away and then change behaviour by surprise. `allowedHosts` is the exception: it replaces the UI's hosts, which add to the environment's, so it is accepted whatever the environment says."
+  },
+  "StoredDashboardLayout": {
+    "type": "object",
+    "properties": {
+      "project": {
+        "type": "string",
+        "description": "The project id, or `all` for All projects"
+      },
+      "layout": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/DashboardLayout"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "project",
+      "layout"
+    ],
+    "description": "The layout of one Home as stored: `layout` is `null` when none is stored and the default applies."
+  },
+  "SaveDashboardLayoutRequest": {
+    "$ref": "#/components/schemas/DashboardLayout",
+    "description": "`PUT /dashboard/layout`: the whole layout of one Home; widget order is the array's order."
   },
   "UpdateTunnelSettingsRequest": {
     "type": "object",

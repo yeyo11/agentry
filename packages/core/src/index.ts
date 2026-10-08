@@ -76,6 +76,7 @@ import { ProviderPoints } from './decisions/provider-points.ts';
 import { WorkProviders, openWaitOf, type StartInput } from './work-provider.ts';
 import type { ChatWork } from './chat-service.ts';
 import { AppSettingsStore } from './app-settings.ts';
+import { DashboardLayoutStore } from './dashboard-layouts.ts';
 import { stateFromRun } from './chat-model.ts';
 import { chatLinkName, WorkItemError, WorkItemService, type WorkItemLinkState } from './work-items.ts';
 import { DEFAULT_DOCUMENTS_PATH, DocumentError, DocumentService, type DocumentsPlace } from './documents.ts';
@@ -198,6 +199,7 @@ export { MCP_ENTRY_ENV, type AgentryMcpLaunch } from './agentry-mcp.ts';
 export { RESOURCE_KINDS } from './config/resources.ts';
 export { parseVariant, type ConfigScope } from './config/scope.ts';
 export { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, loadConfig, type AuthEnv, type CoreConfig } from './paths.ts';
+export { DashboardLayoutStore } from './dashboard-layouts.ts';
 export { AppSettingsStore, RuntimeHosts, type RunDefaults, type RuntimeHostOptions } from './app-settings.ts';
 export { DEFAULT_TUNNEL_PORT, MIN_TAILSCALE_VERSION, TunnelManager, TunnelRefusedError, parseTailscaleVersion, readinessFromStatus, servePortUse, type ServePortUse, type TunnelDeps, type TunnelTiming } from './tunnel.ts';
 export type { AdoptedChat, ChatRuntime, NewChat, RunResult } from './chats.ts';
@@ -410,6 +412,8 @@ export class Core {
    * hosts answered beside the allowlist. What applies now is read here, never from `config`
    */
   readonly appSettings: AppSettingsStore;
+  /** Each Home's layout, per project and for All projects: `dashboard-layouts.json` */
+  readonly dashboardLayouts: DashboardLayoutStore;
   /** The tunnel through `tailscale serve`: lends the node's verified name to `appSettings.runtimeHosts` */
   readonly tunnel: TunnelManager;
   readonly uploads: UploadStore;
@@ -541,6 +545,10 @@ export class Core {
         this.forgetSystem();
         this.events.emit(event);
       },
+    });
+    this.dashboardLayouts = new DashboardLayoutStore(config, {
+      hasProject: async (id) => (await this.projects()).some((p) => p.id === id),
+      emit: (event) => this.events.emit(event),
     });
     this.tunnel = new TunnelManager({
       dataDir: config.dataDir,
