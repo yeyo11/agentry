@@ -3,6 +3,14 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.36.1](https://github.com/yeyo11/agentry/compare/v0.36.0...v0.36.1) (2026-10-08)
+
+
+### Bug fixes
+
+* **chats:** every message is tracked by id from send to delivery; the audit that found why messages got lost (CW-37) ([#227](https://github.com/yeyo11/agentry/issues/227)) ([df44517](https://github.com/yeyo11/agentry/commit/df445179c2e64d4964ee3c41c1827afe0be9368c))
+* **web:** copy works over plain HTTP, and a copy that fails says so (CW-38) ([#225](https://github.com/yeyo11/agentry/issues/225)) ([5cc131c](https://github.com/yeyo11/agentry/commit/5cc131caae4f92f5c480ae081d61e60e201a7515))
+
 ## [0.36.0](https://github.com/yeyo11/agentry/compare/v0.35.0...v0.36.0) (2026-10-08)
 
 
