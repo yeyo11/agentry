@@ -120,16 +120,48 @@ function enterWorktree(name) {
 const worktree = flag('--worktree');
 if (worktree) enterWorktree(worktree);
 
+/**
+ * The transcript the CLI writes to `$CLAUDE_CONFIG_DIR/projects/<cwd>/<session>.jsonl`, in its own
+ * shape, when `AGENTRY_FAKE_CLI_TRANSCRIPT=1` or the scripts file has `"@transcript": true` (a spec
+ * cannot set the server's environment). Off by default, and never without `CLAUDE_CONFIG_DIR`, so
+ * the real `~/.claude` is not written. A message read in the middle of a turn is written the way CLI
+ * 2.1 writes it: `queue-operation` lines and an `attachment` of type `queued_command`, no `user` line.
+ */
+function transcriptOn() {
+  if (!env.CLAUDE_CONFIG_DIR) return false;
+  if (env.AGENTRY_FAKE_CLI_TRANSCRIPT === '1') return true;
+  try {
+    return env.AGENTRY_FAKE_CLI_SCRIPTS ? JSON.parse(readFileSync(env.AGENTRY_FAKE_CLI_SCRIPTS, 'utf8'))['@transcript'] === true : false;
+  } catch {
+    return false;
+  }
+}
+const transcriptFile = transcriptOn() ? join(env.CLAUDE_CONFIG_DIR, 'projects', process.cwd().replace(/[^a-zA-Z0-9]/g, '-'), `${sessionId}.jsonl`) : null;
+let lastLine = null;
+function record(line) {
+  if (!transcriptFile) return;
+  const at = new Date().toISOString();
+  const full = line.type === 'queue-operation' ? { ...line, timestamp: at, sessionId } : { parentUuid: lastLine, isSidechain: false, ...line, timestamp: at, cwd: process.cwd(), sessionId, version: VERSION };
+  if (full.uuid) lastLine = full.uuid;
+  try {
+    mkdirSync(dirname(transcriptFile), { recursive: true });
+    appendFileSync(transcriptFile, `${JSON.stringify(full)}\n`);
+  } catch {
+    // a transcript that cannot be written only costs the spec its evidence
+  }
+}
+
 const emit = (message) => process.stdout.write(`${JSON.stringify({ ...message, session_id: sessionId })}\n`);
-const assistant = (content) =>
-  emit({
-    type: 'assistant',
-    uuid: randomUUID(),
-    parent_tool_use_id: null,
-    message: { id: `msg_${randomUUID()}`, type: 'message', role: 'assistant', model, content, usage: { input_tokens: 10, output_tokens: 10 } },
-  });
-const toolResult = (toolUseId, content, isError) =>
-  emit({ type: 'user', uuid: randomUUID(), parent_tool_use_id: null, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUseId, content, is_error: isError }] } });
+const assistant = (content) => {
+  const message = { type: 'assistant', uuid: randomUUID(), parent_tool_use_id: null, message: { id: `msg_${randomUUID()}`, type: 'message', role: 'assistant', model, content, usage: { input_tokens: 10, output_tokens: 10 } } };
+  emit(message);
+  record({ type: 'assistant', uuid: message.uuid, message: message.message });
+};
+const toolResult = (toolUseId, content, isError) => {
+  const message = { type: 'user', uuid: randomUUID(), parent_tool_use_id: null, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUseId, content, is_error: isError }] } };
+  emit(message);
+  record({ type: 'user', uuid: message.uuid, message: message.message });
+};
 
 emit({
   type: 'system',
@@ -230,12 +262,13 @@ function scriptFor(text) {
 }
 
 function startTurn(message) {
+  record({ type: 'user', uuid: randomUUID(), message: { role: 'user', content: message } });
   const text = scriptFor(message);
   const offset = /^\s*elapsed:\s*(\d+)\s*$/m.exec(text)?.[1];
   if (offset !== undefined) elapsedOffsetS = Number(offset);
   const steps = text
     .split('\n')
-    .map((l) => /^\s*(run|say|read|json|stream|hold):\s*(.+)$/.exec(l))
+    .map((l) => /^\s*(run|say|read|json|stream|hold|ask):\s*(.+)$/.exec(l))
     .filter((m) => m?.[2]?.trim())
     .map((m) => ({ kind: m[1], text: m[2].trim() }));
   const commands = steps.filter((s) => s.kind === 'run').map((s) => s.text);
@@ -336,6 +369,20 @@ function nextStep() {
     }, READ_MS);
     return;
   }
+  if (step.kind === 'ask') {
+    // A Bash call the CLI asks permission for, as `--permission-prompt-tool stdio` makes it: the call,
+    // then a `can_use_tool` control request; the turn waits for the answer. Allowed, the call answers
+    // `Allowed: <command>` without running it; denied, it fails. Either way the turn goes on as after
+    // a command, reading what was said to it meanwhile
+    const id = `toolu_fake_${randomUUID().replaceAll('-', '').slice(0, 20)}`;
+    const input = { command: step.text, description: `Run ${step.text}` };
+    assistant([{ type: 'tool_use', id, name: 'Bash', input }]);
+    const requestId = randomUUID();
+    own.current = { id, child: null, command: step.text, asking: requestId };
+    log('asked', { requestId, command: step.text });
+    emit({ type: 'control_request', request_id: requestId, request: { subtype: 'can_use_tool', tool_name: 'Bash', input, tool_use_id: id } });
+    return;
+  }
   if (step.kind === 'say') {
     own.lastSaid = step.text;
     assistant([{ type: 'text', text: step.text }]);
@@ -374,14 +421,39 @@ function nextStep() {
     }
     const ok = code === 0;
     toolResult(id, (output.trim() || (ok ? '(no output)' : `Exit code ${code ?? signal}`)).slice(0, 4000), !ok);
-    // The worker takes a moment before its next step, and reads what was said to it meanwhile
-    setTimeout(() => {
-      if (turn !== own) return;
-      const said = waiting.splice(0);
-      if (said.length) assistant(said.map(heard));
-      nextStep();
-    }, SETTLE_MS);
+    afterTool(own);
   });
+}
+
+/** The worker takes a moment before its next step, and reads what was said to it meanwhile. */
+function afterTool(own) {
+  setTimeout(() => {
+    if (turn !== own) return;
+    const said = waiting.splice(0);
+    for (const text of said) {
+      // As CLI 2.1 records a message it takes into the running turn: no `user` line
+      record({ type: 'attachment', uuid: randomUUID(), attachment: { type: 'queued_command', prompt: text, commandMode: 'prompt' } });
+      record({ type: 'queue-operation', operation: 'remove', content: text, reason: 'absorbed_mid_turn' });
+    }
+    if (said.length) {
+      log('absorbed', { texts: said });
+      assistant(said.map(heard));
+    }
+    nextStep();
+  }, SETTLE_MS);
+}
+
+/** The answer to a `can_use_tool` request an `ask:` step made. */
+function permissionAnswer(message) {
+  const response = message.response ?? {};
+  const own = turn;
+  if (!own?.current?.asking || response.request_id !== own.current.asking) return;
+  const { id, command } = own.current;
+  own.current = null;
+  const allowed = response.response?.behavior === 'allow';
+  log('answered', { requestId: response.request_id, allowed });
+  toolResult(id, allowed ? `Allowed: ${command}` : 'Permission denied', !allowed);
+  afterTool(own);
 }
 
 function streamEvent(event) {
@@ -416,6 +488,7 @@ function endTurn({ result = '', error = false, structured = undefined }) {
   });
   log('result', { error, turns });
   // What was said during the turn and never answered is taken up now, one turn each
+  for (const text of waiting) record({ type: 'queue-operation', operation: 'dequeue', content: text });
   inbox.push(...waiting.splice(0));
   const next = inbox.shift();
   if (next !== undefined) setImmediate(() => startTurn(next));
@@ -431,6 +504,8 @@ function control(message) {
       turn.interrupted = true;
       killTree(turn.current.child.pid);
     } else if (turn) {
+      // A question waiting for its answer is withdrawn, as the CLI does
+      if (turn.current?.asking) emit({ type: 'control_cancel_request', request_id: turn.current.asking });
       // A Read has no process to take down: the turn ends at once
       if (turn.current) toolResult(turn.current.id, 'The user interrupted this read.', true);
       turn.current = null;
@@ -472,11 +547,14 @@ createInterface({ input: process.stdin })
       return;
     }
     if (message.type === 'control_request') return control(message);
+    if (message.type === 'control_response') return permissionAnswer(message);
     if (message.type !== 'user') return;
     const text = textOf(message);
     log('stdin', { text });
-    if (turn) waiting.push(text);
-    else startTurn(text);
+    if (turn) {
+      record({ type: 'queue-operation', operation: 'enqueue', content: text });
+      waiting.push(text);
+    } else startTurn(text);
   })
   .on('close', () => {
     // The CLI ends what it was doing when its input ends, and says so with a result

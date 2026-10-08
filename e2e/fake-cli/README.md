@@ -29,6 +29,7 @@ It calls no model and no network. Its own test: `node --test e2e/fake-cli/claude
 | `AGENTRY_FAKE_CLI_SCRIPTS` | none | A JSON object `{ "<text>": "<script>" }`: a message containing one of the texts is played as its script instead (see below) |
 | `AGENTRY_FAKE_CLI_VERSION` | `2.1.1-fake` | The version it reports, for a recording that should not say "fake" in its footer |
 | `AGENTRY_FAKE_CLI_AUTH` | none | A JSON object merged into what `auth status` answers (`email`, `subscriptionType`…) |
+| `AGENTRY_FAKE_CLI_TRANSCRIPT` | none | `1` writes a transcript (see below); so does `"@transcript": true` in the scripts file, for a spec, which cannot set the server's environment |
 
 ## Subcommands
 
@@ -50,7 +51,14 @@ event), `--model` (`sonnet` → `claude-sonnet-5`; a full name is kept), `--perm
 is the `cwd` of its `init`; outside one it says so on stderr and works in place.
 
 **On start:** `{"type":"system","subtype":"init", cwd, model, permissionMode, tools:["Bash"], mcp_servers:[], claude_code_version, …}`.
-No transcript is written to the config directory.
+No transcript is written to the config directory, unless `AGENTRY_FAKE_CLI_TRANSCRIPT=1` or the
+scripts file has `"@transcript": true` (read when the process starts) and `CLAUDE_CONFIG_DIR` is set:
+then it appends to `$CLAUDE_CONFIG_DIR/projects/<cwd with every non-alphanumeric as ->/<session>.jsonl`
+what CLI 2.1 writes there: a `user` line per prompt a turn starts with, the `assistant` and
+`tool_result` lines with the uuids it streamed, and `queue-operation` lines (`enqueue`, `dequeue`,
+`remove` with `reason: "absorbed_mid_turn"`). A message read in the middle of a turn gets an
+`attachment` line of type `queued_command` and no `user` line, as the real CLI records it
+(docs/reports/chat-audit/repro.md).
 
 **A user message** (`{"type":"user","message":{"content": string | blocks}}`) starts a turn when none
 is running. When `AGENTRY_FAKE_CLI_SCRIPTS` has a key the text contains, the script under that key is
@@ -78,6 +86,11 @@ inside the orchestrator's own words, hence "contains"). The text is read line by
   `rejected` and `resetsAt` an hour ahead, then a failed `result` with `api_error_status: 429`. It
   fails every time it is sent.
 - `hold: <path>` — waits until `<path>` (against the working directory) exists before the next step.
+- `ask: <command>` — a Bash call the CLI asks permission for: the `tool_use`, then a `can_use_tool`
+  control request; the turn waits for the `control_response`. Allowed, the call answers
+  `Allowed: <command>` (the command is not run); denied, `Permission denied` with `is_error`. Then the
+  turn reads what was said meanwhile, as after a command. An interrupt while it waits withdraws the
+  question with a `control_cancel_request` and ends the turn.
 - `elapsed: <seconds>` — sets the heartbeat offset for this process from now on: a command then
   reports it has run that long, which is how a spec makes `hung-command` fire at once.
 - A turn with `run:` lines and no `say:` line starts with the text `Running N commands.` and ends
@@ -122,5 +135,8 @@ With `AGENTRY_FAKE_CLI_LOG` set, one JSON object per line, each with `at`, `pid`
 | `command` | `toolUseId`, `command`, `commandPid` — logged before the `tool_use` is emitted |
 | `command-ended` | `toolUseId`, `command`, `code`, `signal`, `interrupted` |
 | `control` | `subtype` |
+| `absorbed` | `texts` — messages read inside the running turn, at its next step |
+| `asked` | `requestId`, `command` — an `ask:` step's permission request |
+| `answered` | `requestId`, `allowed` |
 | `result` | `error`, `turns` |
 | `exit` | — |
