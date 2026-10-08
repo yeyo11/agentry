@@ -14,7 +14,7 @@ tags:
 Cut the wall-clock time of an orchestration where it is actually spent. The target is to take a
 typical recent graph from about 2 h 45 min to under 2 h, with no loss in what gets checked.
 
-Status: **proposed on 2026-09-28**, not started. The measurements below come from the API of the
+Status: **built** (epic CW-11, 2026-10-07): CW-13, CW-14, CW-15 and CW-16 landed, and CW-4 was superseded by phase 4 of multiple providers. Proposed on 2026-09-28. The measurements below come from the API of the
 dev server (`GET /orchestrations`, `GET /chats?origin=orchestration,internal` and every worker
 transcript), as of that day. Three questions for the owner are open under
 [Open questions](#open-questions).

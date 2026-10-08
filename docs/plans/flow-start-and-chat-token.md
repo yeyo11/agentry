@@ -11,7 +11,7 @@ tags:
 ---
 # Plan: starting the cards already on the board, and a token for the chats Agentry starts
 
-Status: **proposed**, decided with the owner on 2026-09-28, right after the project ecosystem
+Status: **built** (part 1 by CW-9, part 2 by CW-10); proposed, decided with the owner on 2026-09-28, right after the project ecosystem
 (#118) was merged. Two small changes found on the first real use of the flow.
 
 Section 1 is **built** (CW-9, [spec](flow-start-waiting.md)); section 2 is still proposed.
