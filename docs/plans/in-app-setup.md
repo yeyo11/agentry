@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-08T19:00:00Z
-updated_at: 2026-10-08T22:00:00Z
+updated_at: 2026-10-08T23:30:00Z
 tags:
     - plan
     - setup
@@ -156,7 +156,10 @@ and use the vault.
    `docs/design-system/reference/tools/setup.py` (`DesktopConfiguracion*`, `MobileConfiguracion*`,
    `DesktopAjustesSeguridad`, `MobileAjustesSeguridad`, `DSConfiguracion`), and the "Setup" section of
    [design-system.md](../design-system.md), which records how `claude setup-token` is presented.
-5. **Web**: the shared sign-in panels, Settings, the assistant, i18n, tests.
+5. **Web** (done 2026-10-08, [setup.md](../setup.md#the-web)): the shared sign-in panel and sign-out in
+   Settings → Providers, Integrations and Account, the Secrets card in Settings → Security, the setup
+   assistant in place of the first-run step (which is removed), i18n, unit tests and
+   `e2e/specs/setup.spec.mjs` with a device-code sign-in through the fake `codex`.
 6. **Docs**: `docs/setup.md` (the feature), updates to providers.md, code-hosts.md, trackers.md,
    deploy.md, security notes, and this plan's Outcome.
 

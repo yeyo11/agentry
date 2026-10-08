@@ -1640,6 +1640,18 @@ cifrar" and the callout says values are kept plain at 0600. The Access and Token
 - **The panel's Save is neutral on a desktop.** With the logo and Continuar the screen already has its two gradient
   surfaces.
 
+**In the app** (built in step 5; `apps/web/src/components/setup/`, `styles/setup.css`). Two reference names collide with
+the app's: `.signin` and `.signin-head` are the sign-in screen's, and `.steps` / `.step` the stepper's. So the panel under a
+row is `.prov-bin.signin-panel` with `.signin-panel-head`, and the step bar is `.setup-steps` / `.setup-step` with the marks
+`.is-done`, `.is-current`, `.is-skipped` and `.is-pending` (`.setup-steps-bare` on a phone). The energy border is the app's
+`.live-energy`; the token shown once in the Access step is `.token-once` (a neutral box, since nothing went wrong); the
+Copy beside a code or a token is `CopyButton` with `shown`, a neutral button that reads "Copiar". The other classes keep
+the reference's names (`.signin-device`, `.signin-steps`, `.signin-url`, `.signin-code`, `.signin-wait`, `.signin-result`,
+`.setup-foot`, `.setup-sum-row`, `.setup-where`). Quiet actions (Volver, Omitir, Cerrar sesión, Cancelar) are the providers'
+`.btn.prov-quiet`. Two additions the reference does not draw: "Omitir la configuración" in the assistant's header on a
+desktop, which finishes it at once (`POST /setup/seen`), and, under a code host's row in Settings → Integrations, a quiet
+Iniciar sesión or Cerrar sesión at the end of each known host's line.
+
 **Copy.** Steps: Acceso, Agentes, Código y tareas, Listo. Buttons: Volver, Omitir, Continuar, Iniciar sesión, Cerrar
 sesión, Guardar y comprobar, Cancelar, Copiar, Reintentar, Pedir otro código, Usar una clave, Conectar, Empezar a usar
 Agentry. Methods: Código, Clave. Waiting: "Esperando a que lo apruebes", "caduca en m:ss". Skipped: "omitido" on the

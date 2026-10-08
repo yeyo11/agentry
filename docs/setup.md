@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-08T21:00:00Z
-updated_at: 2026-10-08T21:00:00Z
+updated_at: 2026-10-08T23:30:00Z
 tags:
     - setup
     - security
@@ -11,10 +11,10 @@ tags:
 ---
 # The first setup, from the app
 
-Step 2 of [the in-app setup plan](plans/in-app-setup.md) ("Core and API"): the secret vault, the
-child environments, the sign-ins and the setup state, with their routes. The assistant and the
-panels that use them are the web's (step 5); the CLIs and the key in the image are the Docker
-step's. This document is the reference for what is built; the plan keeps the reasoning and the
+Steps 2 and 5 of [the in-app setup plan](plans/in-app-setup.md): the secret vault, the child
+environments, the sign-ins and the setup state, with their routes (Core and API), and the setup
+assistant and the sign-in panel that use them (Web). The CLIs and the key in the image are the
+Docker step's. This document is the reference for what is built; the plan keeps the reasoning and the
 owner's decisions.
 
 ## The secret vault
@@ -162,6 +162,49 @@ Every write is refused in read-only mode (405), and every route but `GET /setup`
 (403), since reading a session would hand it the person's device code. Types are in
 `packages/shared/src/types.ts` (`SetupState`, `StartLoginRequest`, `LoginSession`, `SignOutResult`,
 `SetupToolMethods`, `SecretStorageStatus`), the client in `apps/web/src/api.ts`.
+
+## The web
+
+`apps/web/src/components/setup/`, styled by `styles/setup.css`, with the copy in the `setup`
+namespace; the pure logic (methods per tool, failures, steps, summary) is `lib/setup.ts`, tested in
+`apps/web/test/setup.test.tsx`. Design: [design-system.md](design-system.md#setup-the-assistant-the-sign-in-panel-and-the-secrets-line).
+
+- **The sign-in panel** (`SignInPanel`, `SignInSheet`) serves every tool but YouTrack, which keeps its
+  address-and-token form (`YoutrackAccess`). It reads the tool's row of `GET /setup`'s `methods`: the
+  Code / Key choice where there is a device code (code first), a second choice where the key may go
+  in several variables (Claude Code's token or API key, OpenCode's four providers), the host field for
+  `gh` and `glab`. The key field is write-only and cleared once sent. Opening an agent's panel on Code
+  asks for a code at once; a host CLI asks for its host first. A device session moves with
+  `login.updated` events (`useLogin`), read with `GET /setup/logins/:id` every 3 s only while the event
+  stream is down; succeeded closes the panel and reads every readiness list again, cancelled closes it,
+  failed and expired say why by code with the one action (Retry, Use a key, See install, Get another
+  code). Closing a panel whose code still waits cancels the session. Claude Code's panel names
+  `claude setup-token` inside the sentence, with no copy button.
+- **Sign out** (`SignOutButton`) asks first, as a destructive action, and calls
+  `DELETE /setup/credentials/:tool` (per host for `gh` and `glab`). It is offered where the tool works,
+  or keeps only a key Agentry holds, and its vendor documents a way out: never for Copilot.
+- **Where the panel is.** Settings → Providers (each signed-out row's Sign in, a ready row's Sign out;
+  `useProviderSignIn`), Settings → Integrations (a signed-out CLI's Sign in, Add another host on a
+  ready one, and Sign in or Sign out at the end of each known host's line; the rows moved to
+  `pages/config/integrations/rows.tsx` so the assistant lists the same ones), Settings → Account (the
+  panel as the card that replaced the old credential form; the status card and Verify stay), and the
+  assistant.
+- **Settings → Security** starts with the Secrets card (`SecretsCard`), from `GET /setup`'s
+  `secrets`: encrypted or not, a warning when the key sits beside the data or when there is none,
+  with the link to how to pass `AGENTRY_SECRET_KEY`.
+- **The assistant** (`SetupAssistant`, lazy) replaces the first-run Providers step, which is gone.
+  `lib/first-run.ts`'s `useSetupGate` shows it while `GET /setup` says `seen: false`; a failed read
+  hides it. Steps: Access (None or Token, from the same pieces as Settings → Security's token card,
+  `pages/config/security/token.tsx`; turning Token on makes a token first when this browser holds
+  none, so it cannot lock the person out), Agents (the providers switched on, or the install page when
+  none is found), Code and work items (GitHub, GitLab, YouTrack), Done (a summary with where each
+  thing is changed). Back, Skip and Continue move between steps and remember what was skipped; Start
+  on Done, "Skip setup" in the header or a summary link records `POST /setup/seen`, and the assistant
+  never comes back. A server that cannot record it (read-only, or the environment owns `setupSeen`)
+  only hides it until the page reloads.
+- **e2e.** `e2e/specs/setup.spec.mjs` walks the assistant and signs Codex in with a device code
+  through the fake `codex` (`login --device-auth` prints the recording and waits for the spec's
+  approval file), then signs it out from Settings; `providers.spec.mjs` covers the Agents step.
 
 ## Related
 
