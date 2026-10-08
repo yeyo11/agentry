@@ -90,7 +90,7 @@ instead of signed out.
 | `gemini` | vault, `GEMINI_API_KEY` | none | vault cleared |
 | `copilot` | `copilot login --with-token`, stdin | `copilot login --device-code` | none documented: `unsupported` |
 | `opencode` | vault, one of `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY` | none | vault cleared |
-| `gh` | `gh auth login --with-token --hostname H`, stdin | `gh auth login --web --hostname H`, `deviceNeedsRecording` | `gh auth logout --hostname H` |
+| `gh` | `gh auth login --with-token --hostname H`, stdin | `gh auth login --web --hostname H` | `gh auth logout --hostname H` |
 | `glab` | `glab auth login --hostname H --stdin` | `glab auth login --device --hostname H` | `glab auth logout --hostname H` |
 | `youtrack` | vault, `YOUTRACK_HOST` (the `host` field) and `YOUTRACK_TOKEN` | none | vault cleared |
 

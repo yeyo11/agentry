@@ -86,16 +86,17 @@ const readRecord = (r: Rig): { pid: number; argv: string[]; stdin: string; env: 
 
 // ---------- device-code output ----------
 
-test('the URL and the code are read from each tool\'s device-code output', () => {
+test('the URL and the code are read from each tool\'s recorded device-code output', () => {
+  // Recorded on the pinned versions with no terminal (fixtures/logins/README.md)
   const expected = {
-    gh: ['https://github.com/login/device', 'AB12-CD34'],
-    copilot: ['https://github.com/login/device', '1234-5678'],
-    codex: ['https://auth.openai.com/codex/device', 'QW7E-RT9YU'],
-    glab: ['https://gitlab.com/oauth/device', 'K3M9-PL2Q'],
+    gh: ['gh-web.stderr', 'https://github.com/login/device', '250D-975E'],
+    copilot: ['copilot-device-code.stdout', 'https://github.com/login/device', '0472-EEB7'],
+    codex: ['codex-device-auth.stdout', 'https://auth.openai.com/codex/device', 'LK0N-5V0Q5'],
+    glab: ['glab-device.stderr', 'https://gitlab.com/oauth/device', 'WZS9BFLC'],
   } as const;
-  for (const [tool, [url, code]] of Object.entries(expected) as Array<[keyof typeof DEVICE_PATTERNS, readonly [string, string]]>) {
+  for (const [tool, [file, url, code]] of Object.entries(expected) as Array<[keyof typeof DEVICE_PATTERNS, readonly [string, string, string]]>) {
     let found: { url: string | null; code: string | null } = { url: null, code: null };
-    for (const line of readFileSync(fixture(`${tool}-fake.txt`), 'utf8').split('\n')) {
+    for (const line of readFileSync(fixture(file), 'utf8').split('\n')) {
       const read = readDeviceLine(DEVICE_PATTERNS[tool], line);
       found = { url: found.url ?? read.url, code: found.code ?? read.code };
     }
@@ -104,19 +105,18 @@ test('the URL and the code are read from each tool\'s device-code output', () =>
 });
 
 test('colour codes and a sentence\'s closing punctuation never end up in the URL or the code', () => {
-  const read = readDeviceLine(DEVICE_PATTERNS.codex, '\u001b[1mOpen https://auth.openai.com/codex/device.\u001b[0m then type \u001b[32mAAAA-BBBB\u001b[0m');
-  assert.deepEqual(read, { url: 'https://auth.openai.com/codex/device', code: 'AAAA-BBBB' });
+  const read = readDeviceLine(DEVICE_PATTERNS.copilot, '\u001b[1mTo authenticate, visit https://github.com/login/device. and enter code \u001b[32mAAAA-BBBB\u001b[0m');
+  assert.deepEqual(read, { url: 'https://github.com/login/device', code: 'AAAA-BBBB' });
   // Only an https address is a link worth showing
-  assert.equal(readDeviceLine(DEVICE_PATTERNS.glab, 'see http://gitlab.com/oauth/device').url, null);
+  assert.equal(readDeviceLine(DEVICE_PATTERNS.glab, 'Then open this URL on any device to authorize: http://gitlab.com/oauth/device').url, null);
 });
 
-test('the methods table offers a device sign-in where the vendor documents one, and gh waits for its recording', () => {
+test('the methods table offers a device sign-in where the vendor documents one', () => {
   const methods = Object.fromEntries(setupMethods().map((m) => [m.tool, m]));
   assert.deepEqual(
     Object.entries(methods).filter(([, m]) => m.device).map(([tool]) => tool).sort(),
     ['codex', 'copilot', 'gh', 'glab'],
   );
-  assert.equal(methods.gh?.deviceNeedsRecording, true);
   assert.equal(methods.copilot?.signOut, false);
   assert.deepEqual(methods['claude-code']?.variables, ['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY']);
 });
@@ -124,7 +124,7 @@ test('the methods table offers a device sign-in where the vendor documents one, 
 // ---------- device sign-in ----------
 
 test('a device sign-in shows the URL and the code, and succeeds when the readiness probe says signed in', async () => {
-  const r = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('codex-fake.txt'), FAKE_LOGIN_DELAY_MS: '300' } });
+  const r = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('codex-device-auth.stdout'), FAKE_LOGIN_DELAY_MS: '300' } });
   const started = await r.logins.start({ tool: 'codex', method: 'device' });
   assert.equal(started.state, 'starting');
   const done = await until(() => ended(r, started.id), 'the sign-in to end');
@@ -133,27 +133,27 @@ test('a device sign-in shows the URL and the code, and succeeds when the readine
   assert.deepEqual(r.readinessCalls, [{ tool: 'codex', host: null }]);
   const waiting = r.events.find((e) => e.type === 'login.updated' && e.login.state === 'waiting-for-person');
   assert.ok(waiting && waiting.type === 'login.updated');
-  assert.deepEqual([waiting.login.url, waiting.login.code], ['https://auth.openai.com/codex/device', 'QW7E-RT9YU']);
+  assert.deepEqual([waiting.login.url, waiting.login.code], ['https://auth.openai.com/codex/device', 'LK0N-5V0Q5']);
   // Nothing else the CLI printed leaves the service
   assert.ok(!JSON.stringify(r.events).includes('phishing'));
   assert.deepEqual(readRecord(r).argv, ['login', '--device-auth']);
 });
 
-test('a code printed on stderr counts too (copilot), and gh and glab name their host', async () => {
-  const copilot = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('copilot-fake.txt'), FAKE_LOGIN_STDERR: '1' } });
+test('a code printed on stderr counts too (glab), and gh and glab name their host', async () => {
+  const copilot = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('copilot-device-code.stdout') } });
   const one = await copilot.logins.start({ tool: 'copilot', method: 'device' });
-  assert.equal((await until(() => ended(copilot, one.id), 'copilot')).code, '1234-5678');
+  assert.equal((await until(() => ended(copilot, one.id), 'copilot')).code, '0472-EEB7');
 
-  const glab = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('glab-fake.txt') } });
+  const glab = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('glab-device.stderr'), FAKE_LOGIN_STDERR: '1' } });
   const two = await glab.logins.start({ tool: 'glab', method: 'device', host: 'GitLab.example.com' });
   const done = await until(() => ended(glab, two.id), 'glab');
-  assert.deepEqual([done.state, done.host, done.code], ['succeeded', 'gitlab.example.com', 'K3M9-PL2Q']);
+  assert.deepEqual([done.state, done.host, done.code], ['succeeded', 'gitlab.example.com', 'WZS9BFLC']);
   assert.deepEqual(readRecord(glab).argv, ['auth', 'login', '--device', '--hostname', 'gitlab.example.com']);
   assert.deepEqual(glab.readinessCalls, [{ tool: 'glab', host: 'gitlab.example.com' }]);
 });
 
 test('a device sign-in fails with a code, never the CLI\'s text: refused, no code shown, or still signed out', async () => {
-  const refused = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('gh-fake.txt'), FAKE_LOGIN_EXIT: '1' } });
+  const refused = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('gh-web.stderr'), FAKE_LOGIN_STDERR: '1', FAKE_LOGIN_EXIT: '1' } });
   const a = await refused.logins.start({ tool: 'gh', method: 'device' });
   assert.deepEqual(await until(() => ended(refused, a.id), 'refused').then((s) => [s.state, s.error]), ['failed', 'cli-refused']);
 
@@ -161,7 +161,7 @@ test('a device sign-in fails with a code, never the CLI\'s text: refused, no cod
   const b = await silent.logins.start({ tool: 'codex', method: 'device' });
   assert.deepEqual(await until(() => ended(silent, b.id), 'no code').then((s) => [s.state, s.error]), ['failed', 'no-code']);
 
-  const out = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('codex-fake.txt') }, ready: false });
+  const out = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('codex-device-auth.stdout') }, ready: false });
   const c = await out.logins.start({ tool: 'codex', method: 'device' });
   assert.deepEqual(await until(() => ended(out, c.id), 'not signed in').then((s) => [s.state, s.error, s.ready]), ['failed', 'not-signed-in', false]);
 
@@ -171,7 +171,7 @@ test('a device sign-in fails with a code, never the CLI\'s text: refused, no cod
 });
 
 test('a device sign-in nobody approves expires, and its process is killed', async () => {
-  const r = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('codex-fake.txt'), FAKE_LOGIN_EXIT: 'hang' }, lifetimeMs: 600 });
+  const r = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('codex-device-auth.stdout'), FAKE_LOGIN_EXIT: 'hang' }, lifetimeMs: 600 });
   const started = await r.logins.start({ tool: 'codex', method: 'device' });
   await until(() => (existsSync(r.record) ? true : null), 'the fake to start');
   const { pid } = readRecord(r);
@@ -182,7 +182,7 @@ test('a device sign-in nobody approves expires, and its process is killed', asyn
 });
 
 test('cancelling a device sign-in kills its process group and ends it cancelled', async () => {
-  const r = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('glab-fake.txt'), FAKE_LOGIN_EXIT: 'hang' } });
+  const r = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('glab-device.stderr'), FAKE_LOGIN_STDERR: '1', FAKE_LOGIN_EXIT: 'hang' } });
   const started = await r.logins.start({ tool: 'glab', method: 'device' });
   await until(() => (r.logins.get(started.id)?.state === 'waiting-for-person' ? true : null), 'the code');
   const { pid } = readRecord(r);
@@ -194,7 +194,7 @@ test('cancelling a device sign-in kills its process group and ends it cancelled'
 });
 
 test('starting again for the same tool and host cancels the sign-in still waiting', async () => {
-  const r = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('codex-fake.txt'), FAKE_LOGIN_EXIT: 'hang' } });
+  const r = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('codex-device-auth.stdout'), FAKE_LOGIN_EXIT: 'hang' } });
   const first = await r.logins.start({ tool: 'codex', method: 'device' });
   const second = await r.logins.start({ tool: 'codex', method: 'device' });
   assert.equal(r.logins.get(first.id)?.state, 'cancelled');

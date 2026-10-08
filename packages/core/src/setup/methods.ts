@@ -4,9 +4,7 @@ import type { SetupTool, SetupToolMethods } from '@agentry/shared';
  * How each tool signs in, and only through what its vendor ships for programs (the one rule). The
  * table is docs/plans/in-app-setup.md's, "What each vendor allows"; docs/setup.md keeps it with its
  * sources. A device-code row runs the vendor's documented command with no terminal: the recordings
- * under packages/core/test/fixtures/logins/ decide whether a row keeps it, and `gh` waits for its
- * recording (`deviceNeedsRecording`), so a client does not offer it until that recording says
- * `--web` works without a TTY.
+ * under packages/core/test/fixtures/logins/ show all four (Codex, Copilot, gh, glab) run that way.
  */
 export interface ToolLogin {
   methods: SetupToolMethods;
@@ -24,7 +22,6 @@ const row = (tool: SetupTool, methods: Partial<Omit<SetupToolMethods, 'tool'>>):
   variables: [],
   exclusive: false,
   device: false,
-  deviceNeedsRecording: false,
   needsHost: false,
   defaultHost: null,
   signOut: true,
@@ -79,7 +76,7 @@ export const TOOL_LOGINS: Readonly<Record<SetupTool, ToolLogin>> = {
     signOutCommand: null,
   },
   gh: {
-    methods: row('gh', { key: 'stdin', device: true, deviceNeedsRecording: true, needsHost: true, defaultHost: 'github.com' }),
+    methods: row('gh', { key: 'stdin', device: true, needsHost: true, defaultHost: 'github.com' }),
     keyCommand: (host) => ['auth', 'login', '--with-token', '--hostname', host],
     deviceCommand: (host) => ['auth', 'login', '--web', '--hostname', host],
     signOutCommand: (host) => ['auth', 'logout', '--hostname', host],

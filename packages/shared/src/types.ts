@@ -6437,11 +6437,6 @@ export interface SetupToolMethods {
   exclusive: boolean;
   /** Whether the vendor documents a device-code sign-in Agentry runs */
   device: boolean;
-  /**
-   * The device-code sign-in still waits for a recording that shows it runs with no terminal; a
-   * client hides it until it is false.
-   */
-  deviceNeedsRecording: boolean;
   /** Whether a host name is part of the sign-in: `gh` and `glab` name one, YouTrack an address */
   needsHost: boolean;
   /** The host used when none is given (`github.com`, `gitlab.com`); null where there is none */

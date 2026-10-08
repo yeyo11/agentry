@@ -20660,10 +20660,6 @@
         "type": "boolean",
         "description": "Whether the vendor documents a device-code sign-in Agentry runs"
       },
-      "deviceNeedsRecording": {
-        "type": "boolean",
-        "description": "The device-code sign-in still waits for a recording that shows it runs with no terminal; a client hides it until it is false."
-      },
       "needsHost": {
         "type": "boolean",
         "description": "Whether a host name is part of the sign-in: `gh` and `glab` name one, YouTrack an address"
@@ -20686,7 +20682,6 @@
       "variables",
       "exclusive",
       "device",
-      "deviceNeedsRecording",
       "needsHost",
       "defaultHost",
       "signOut"
