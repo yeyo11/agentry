@@ -312,7 +312,7 @@
   "limit-words [LimitWindowWord, isKnownLimitWindow, limitWindowWord, useLimitWindowName]",
   "list-keys [KeyLike, ListKey, TargetLike, listKeyAction, useListKeys]",
   "list-model [ListGroup, listGroups, listMore]",
-  "list-params [GLOBAL_SCOPE, ListParams, ListValues, parseStored, pickValues, reconcile, sameValues, storageKey, useListParams, withValues]",
+  "list-params [Decision, GLOBAL_SCOPE, ListParams, ListValues, parseStored, pickValues, reconcile, sameValues, stillCurrent, storageKey, useListParams, withValues]",
   "lists [PROJECT_SORTERS, ProjectSort, ScheduleView, matchesText, scheduleFields, scheduleView]",
   "live [ACTIVITY_VERBS, ActivityVerb, SPINNER_FRAMES, SPINNER_STILL, TickerActivity, activityTarget, activityVerb, elapsedSince, formatElapsed, spinnerGlyph]",
   "live [InitialsBadge, NowWidget, OrchestrationsWidget, PickUpWidget, ProjectsWidget, SchedulesWidget]",
