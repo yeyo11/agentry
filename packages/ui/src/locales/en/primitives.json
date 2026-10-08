@@ -60,7 +60,8 @@
     "requestFailed": "Request failed",
     "unsavedChangesLabel": "unsaved changes",
     "agentIsWorking": "{{agent}} is working",
-    "agentGeneric": "The agent"
+    "agentGeneric": "The agent",
+    "copyFailed": "Could not copy"
   },
   "controls": {
     "decrease": "Decrease",

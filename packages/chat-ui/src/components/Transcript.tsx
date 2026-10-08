@@ -25,6 +25,7 @@ import { Spinner } from '@agentry/ui/components/Spinner';
 import { useToast } from '@agentry/ui/components/Toast';
 import { CopyButton } from '@agentry/ui/components/ui';
 import { VirtualList } from '@agentry/ui/components/VirtualList';
+import { copyText } from '@agentry/ui/lib/clipboard';
 
 const RESULT_PREVIEW_CHARS = 6000;
 
@@ -219,7 +220,7 @@ function MessageMenu({ text, actions }: { text: string; actions: MessageActions 
       id: 'copy',
       icon: Copy,
       label: t('messageMenu.copy'),
-      onSelect: () => void navigator.clipboard?.writeText(text).then(() => toast.success(t('messageMenu.copied'))),
+      onSelect: () => void copyText(text).then((copied) => (copied ? toast.success(t('messageMenu.copied')) : toast.error(t('messageMenu.copyFailed')))),
     },
     { id: 'task-separator', separator: true },
     {

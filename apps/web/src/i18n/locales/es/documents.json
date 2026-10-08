@@ -41,7 +41,9 @@
     "mode": "Modo",
     "edited": "editado {{when}}",
     "markdown": "Markdown",
-    "preview": "Vista previa"
+    "preview": "Vista previa",
+    "pathCopied": "Ruta copiada",
+    "copyFailed": "No se ha podido copiar la ruta"
   },
   "origin": {
     "wroteBy": "Lo escribió el",

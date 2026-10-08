@@ -183,7 +183,8 @@
     "cancel": "Cancelar",
     "save": "Guardar",
     "editTitle": "Renombrar la tarea",
-    "editDescription": "Editar la descripción"
+    "editDescription": "Editar la descripción",
+    "copyFailed": "No se ha podido copiar el enlace"
   },
   "delete": {
     "title": "¿Eliminar {{key}}?",
