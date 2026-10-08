@@ -1,0 +1,10 @@
+WARNING: The operating system keyring is unavailable. Storing credentials as plaintext in the configuration file.
+WARNING: Could not look up the username for this token: GET https://gitlab.com/api/v4/user: 401 {message: 401 Unauthorized}
+✓ Stored your credentials in the configuration file.
+
+What's new in glab v1.120.0
+  Run: glab whatsnew
+
+A new version of glab is available
+  v1.120.0 → v1.121.0
+  Release notes: https://gitlab.com/gitlab-org/cli/-/releases/v1.121.0

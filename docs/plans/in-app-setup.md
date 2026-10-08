@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-08T19:00:00Z
-updated_at: 2026-10-08T19:00:00Z
+updated_at: 2026-10-08T20:00:00Z
 tags:
     - plan
     - setup
@@ -50,7 +50,7 @@ the research of 2026-10-08; the table is the result.
 | Gemini CLI | `GEMINI_API_KEY`, env | none: Google sign-in lives in its TUI |
 | Copilot CLI | `copilot login --with-token`, stdin (fine-grained PAT with Copilot Requests), or `COPILOT_GITHUB_TOKEN` | `copilot login --device-code` |
 | OpenCode | the upstream provider's key, env (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, …) | none usable: subscriptions go through a TUI menu |
-| gh | `gh auth login --with-token -h <host>`, stdin | `gh auth login --web -h <host>` prints a one-time code; to be recorded without a TTY before it ships |
+| gh | `gh auth login --with-token -h <host>`, stdin | `gh auth login --web -h <host>` prints a one-time code, and works with no TTY (recorded 2026-10-08) |
 | glab | `glab auth login --hostname <host> --stdin` | `glab auth login --device --hostname <host>` (GitLab 17.9 or later) |
 | YouTrack | address and permanent token, env (`YOUTRACK_HOST`, `YOUTRACK_TOKEN`); exists | none |
 
@@ -142,7 +142,8 @@ and use the vault.
 
 ## Work, in order
 
-1. **Recordings.** Run each device-code command in the image with no TTY and keep its output as a
+1. **Recordings** (done 2026-10-08, `packages/core/test/fixtures/logins/README.md`: all four run
+   with no TTY; Codex and glab store a bad key with exit 0). Run each device-code command in the image with no TTY and keep its output as a
    fixture: `codex login --device-auth`, `copilot login --device-code`, `glab auth login --device
    --hostname gitlab.com`, `gh auth login --web -h github.com`. Stop each once the code is shown; no
    account is signed in. Also record whether Copilot, with no keychain, asks before storing in plain

@@ -1,0 +1,11 @@
+{
+  "command": "echo github_pat_11AAAAAAA0000000000000_000000000000000000000000000000000000000000000000000000000 | copilot login --with-token",
+  "stdin": "pipe: the line \"github_pat_11AAAAAAA0000000000000_000000000000000000000000000000000000000000000000000000000\"",
+  "tty": false,
+  "exitCode": 1,
+  "stopped": "exited",
+  "secondsRunning": 1.8,
+  "version": "GitHub Copilot CLI 1.0.93.",
+  "recordedAt": "2026-10-08",
+  "image": "agentry:fixes-test, plus gh 2.102.0 and glab 1.120.0 release binaries"
+}

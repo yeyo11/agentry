@@ -1,0 +1,11 @@
+{
+  "command": "glab auth login --device --hostname gitlab.com",
+  "stdin": "/dev/null",
+  "tty": false,
+  "exitCode": 1,
+  "stopped": "killed with SIGTERM to the process group 3 s after the code appeared",
+  "secondsRunning": 3.8,
+  "version": "glab 1.120.0 (78790114c)",
+  "recordedAt": "2026-10-08",
+  "image": "agentry:fixes-test, plus gh 2.102.0 and glab 1.120.0 release binaries"
+}

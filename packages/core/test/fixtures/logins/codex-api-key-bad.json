@@ -1,0 +1,11 @@
+{
+  "command": "echo bad | codex login --with-api-key",
+  "stdin": "pipe: the line \"bad\"",
+  "tty": false,
+  "exitCode": 0,
+  "stopped": "exited",
+  "secondsRunning": 0.3,
+  "version": "codex-cli 0.159.3",
+  "recordedAt": "2026-10-08",
+  "image": "agentry:fixes-test, plus gh 2.102.0 and glab 1.120.0 release binaries"
+}

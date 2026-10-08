@@ -1,0 +1,11 @@
+{
+  "command": "codex login --device-auth",
+  "stdin": "/dev/null",
+  "tty": false,
+  "exitCode": 0,
+  "stopped": "killed with SIGTERM to the process group 3 s after the code appeared",
+  "secondsRunning": 3.5,
+  "version": "codex-cli 0.159.3",
+  "recordedAt": "2026-10-08",
+  "image": "agentry:fixes-test, plus gh 2.102.0 and glab 1.120.0 release binaries"
+}

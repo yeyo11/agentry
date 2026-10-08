@@ -1,0 +1,11 @@
+{
+  "command": "echo bad | gh auth login --with-token -h github.com",
+  "stdin": "pipe: the line \"bad\"",
+  "tty": false,
+  "exitCode": 1,
+  "stopped": "exited",
+  "secondsRunning": 0.5,
+  "version": "gh version 2.102.0 (2026-09-30)",
+  "recordedAt": "2026-10-08",
+  "image": "agentry:fixes-test, plus gh 2.102.0 and glab 1.120.0 release binaries"
+}
