@@ -76,7 +76,7 @@ Rules for every tool:
 
 - The input schema is strict (`additionalProperties: false`). An input that fails it is answered as a
   tool error (`isError: true`) and no request is made.
-- The result is one `text` content of compact JSON, never indented (a test checks every read tool), capped at `RESULT_MAX_CHARS` (50 000). A cut result
+- The result is one `text` content of compact JSON, never indented (a test checks every read tool). TOON was benchmarked on the list tools and saved under 15 %, so no tool uses it ([plans/agent-wire-format.md](plans/agent-wire-format.md)), capped at `RESULT_MAX_CHARS` (50 000). A cut result
   ends with `"truncated": true` and a hint to narrow the call.
 - A 4xx or 5xx is an error result with the status and the route's `error` text; there is no retry. A
   `401` says that the API is guarded and the chat has no token. A network error names the URL tried.
