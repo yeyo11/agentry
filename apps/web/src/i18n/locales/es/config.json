@@ -263,9 +263,6 @@
       "credentialsFile": "archivo de credenciales de un inicio de sesión interactivo",
       "none": "ninguna"
     },
-    "saved": "Credencial guardada",
-    "savedDetail": "Se aplica a todas las ejecuciones nuevas. Compruébala con una petición real.",
-    "saveFailed": "No se ha podido guardar la credencial",
     "removed": "Credencial guardada eliminada",
     "removeFailed": "No se ha podido quitar la credencial",
     "works": "La cuenta funciona",
@@ -283,15 +280,7 @@
     "remove": "Quitar la credencial guardada",
     "working": "Funciona",
     "failed": "Error: {{detail}}",
-    "loggedInNote": "“Sesión iniciada” solo significa que hay una credencial configurada; el CLI no la valida. Usa la comprobación para asegurarte.",
-    "setCredential": "Configurar la credencial",
-    "type": "Tipo",
-    "oauthOption": "Token OAuth de la suscripción (claude setup-token)",
-    "apiKeyOption": "Clave de API de Anthropic",
-    "oauthToken": "Token OAuth",
-    "apiKey": "Clave de API",
-    "secretHint": "Se guarda en el volumen de datos del wrapper y se aplica a todas las ejecuciones nuevas. Sustituye a las credenciales del entorno del contenedor y la API nunca la devuelve.",
-    "save": "Guardar la credencial"
+    "loggedInNote": "“Sesión iniciada” solo significa que hay una credencial configurada; el CLI no la valida. Usa la comprobación para asegurarte."
   },
   "instructions": {
     "variants": {

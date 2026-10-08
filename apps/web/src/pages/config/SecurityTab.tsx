@@ -1,22 +1,22 @@
 import type { AuditEntry, AuthConfig, AuthMode, OidcConfig } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, KeyRound, RefreshCw, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RefreshCw, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
 import { Combobox, Select, Switch, type SelectOption } from '@agentry/ui/components/controls';
 import { useConfirm } from '@agentry/ui/components/Dialog';
-import { ICON, ICON_SM } from '@agentry/ui/components/icons';
+import { ICON_SM } from '@agentry/ui/components/icons';
 import { useToast } from '@agentry/ui/components/Toast';
-import { Card, CopyButton, Empty, ErrorBox, Field, Segmented, Skeleton, Tag } from '@agentry/ui/components/ui';
-import { getToken, setChallenge, setToken } from '../../lib/auth';
+import { Card, Empty, ErrorBox, Field, Segmented, Skeleton, Tag } from '@agentry/ui/components/ui';
+import { getToken } from '../../lib/auth';
 import { formatDateTime, formatNumber } from '@agentry/ui/lib/format';
 import { GLOBAL_SCOPE, useListParams } from '../../lib/list-params';
-import { reveal, useRevealedToken } from '../../lib/revealed-token';
+import { SecretsCard } from '../../components/setup/SecretsCard';
 import { AppSettingsCards } from './AppSettingsCards';
+import { OwnTokenForm, RevealedToken, useTokenActions } from './security/token';
 
 const MODES: AuthMode[] = ['none', 'token', 'oidc'];
-const MIN_OWN_TOKEN = 16;
 const AUDIT_PAGE = 25;
 const NO_OIDC: OidcConfig = { issuer: '', audience: '', clientId: '' };
 // Only writes are recorded, so a GET filter could never match
@@ -43,6 +43,7 @@ export function SecurityTab() {
           <Skeleton rows={5} />
         </Card>
       )}
+      <SecretsCard />
       {auth && (
         <>
           <ReadOnlyCard auth={auth} />
@@ -195,60 +196,9 @@ function AccessCard({ auth }: { auth: AuthConfig }) {
 
 function TokenCard({ auth }: { auth: AuthConfig }) {
   const { t } = useTranslation(['config', 'common']);
-  const queryClient = useQueryClient();
-  const toast = useToast();
   const confirm = useConfirm();
-  const revealed = useRevealedToken();
-  const [own, setOwn] = useState<string | null>(null);
-
-  const set = useMutation({
-    mutationFn: async (token: string | undefined) => {
-      const result = await api.setSecurityToken(token ? { token } : {});
-      // The old token stopped working the moment the answer was written: this browser takes the new
-      // one before anything else asks, or its next poll would be a 401 and the sign-in screen. An OIDC
-      // wrapper wants a JWT here, which a static token would only get in the way of.
-      if (auth.mode !== 'oidc') {
-        setToken(result.token);
-        setChallenge(null);
-      }
-      // A token the person typed is one they already have; only a generated one is shown
-      if (!token) reveal(result.token);
-      return result;
-    },
-    onSuccess: () => {
-      setOwn(null);
-      void queryClient.invalidateQueries({ queryKey: keys.securityAuth });
-      void queryClient.invalidateQueries({ queryKey: ['security', 'audit'] });
-      toast.success(t('config:security.token.saved'));
-    },
-    onError: (err) => toast.error(t('config:security.token.saveFailed'), err),
-  });
-  const clear = useMutation({
-    mutationFn: api.clearSecurityToken,
-    onSuccess: (config) => {
-      queryClient.setQueryData(keys.securityAuth, config);
-      toast.success(t('config:security.token.removed'));
-    },
-    onError: (err) => toast.error(t('config:security.token.removeFailed'), err),
-  });
-
-  async function generate() {
-    // Rotating while the token is the credential cuts off everyone else who holds the old one
-    if (auth.tokenSet && auth.mode === 'token') {
-      const ok = await confirm({
-        title: t('config:security.token.rotateConfirm.title'),
-        body: t('config:security.token.rotateConfirm.body'),
-        confirmLabel: t('config:security.token.rotate'),
-        danger: true,
-      });
-      if (!ok) return;
-    }
-    reveal(null);
-    set.mutate(undefined);
-  }
-
-  const ownTooShort = own !== null && own.trim().length < MIN_OWN_TOKEN;
-  const busy = set.isPending || clear.isPending;
+  const { set, clear, generate, busy } = useTokenActions(auth);
+  const [own, setOwn] = useState(false);
 
   return (
     <Card
@@ -258,32 +208,13 @@ function TokenCard({ auth }: { auth: AuthConfig }) {
       <p className="small muted">{t('config:security.token.intro')}</p>
       <p className="small muted">{t('config:security.token.recovery', { token: 'AGENTRY_AUTH_TOKEN', reset: 'AGENTRY_AUTH_TOKEN_RESET' })}</p>
 
-      {revealed && (
-        <div className="alert alert-warn" role="status">
-          <KeyRound {...ICON} className="alert-icon" aria-hidden />
-          <div className="alert-body">
-            <strong>{t('config:security.token.shownOnce')}</strong>
-            <div className="small">{t('config:security.token.shownOnceBody')}</div>
-            <div className="form-actions">
-              <code className="mono break" data-testid="new-token">
-                {revealed}
-              </code>
-              <CopyButton text={revealed} label={t('config:security.token.copy')} />
-            </div>
-            <div className="form-actions">
-              <button type="button" className="btn btn-small" onClick={() => reveal(null)}>
-                {t('config:security.token.copied')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <RevealedToken />
 
       <div className="form-actions">
         <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void generate()}>
           {auth.tokenSet ? t('config:security.token.rotate') : t('config:security.token.generate')}
         </button>
-        <button type="button" className="btn" disabled={busy || own !== null} onClick={() => setOwn('')}>
+        <button type="button" className="btn" disabled={busy || own} onClick={() => setOwn(true)}>
           {t('config:security.token.own')}
         </button>
         {auth.tokenSet && (
@@ -306,27 +237,7 @@ function TokenCard({ auth }: { auth: AuthConfig }) {
       </div>
       {auth.tokenSet && auth.mode === 'token' && <p className="small muted">{t('config:security.token.removeBlocked')}</p>}
 
-      {own !== null && (
-        <form
-          className="form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!ownTooShort) set.mutate(own.trim());
-          }}
-        >
-          <Field label={t('config:security.token.ownLabel')} hint={t('config:security.token.ownHint', { min: MIN_OWN_TOKEN })}>
-            <input type="password" autoComplete="off" autoFocus value={own} onChange={(e) => setOwn(e.target.value)} />
-          </Field>
-          <div className="form-actions">
-            <button type="submit" className="btn btn-primary" disabled={ownTooShort || busy}>
-              {t('config:security.token.ownSave')}
-            </button>
-            <button type="button" className="btn" onClick={() => setOwn(null)}>
-              {t('common:actions.cancel')}
-            </button>
-          </div>
-        </form>
-      )}
+      {own && <OwnTokenForm busy={busy} onSave={(token) => set.mutate(token, { onSuccess: () => setOwn(false) })} onCancel={() => setOwn(false)} />}
     </Card>
   );
 }

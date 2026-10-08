@@ -7,6 +7,7 @@ import { api, keys } from '../../api';
 import { Select, Sheet, Switch } from '@agentry/ui/components/controls';
 import { ICON, ICON_SM } from '@agentry/ui/components/icons';
 import { ProviderRow, useProviderReason } from '../../components/ProviderRow';
+import { useProviderSignIn } from '../../components/setup/provider-sign-in';
 import { Spinner } from '@agentry/ui/components/Spinner';
 import { useToast } from '@agentry/ui/components/Toast';
 import { Card, ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
@@ -44,6 +45,7 @@ export function ProvidersTab() {
   const [checking, setChecking] = useState<ProviderId | 'all' | null>(null);
   const [binaryOf, setBinaryOf] = useState<ProviderId | null>(null);
   const [orderOpen, setOrderOpen] = useState(false);
+  const signIn = useProviderSignIn();
 
   const save = useMutation({
     mutationFn: (next: ProvidersSettings) => api.putProviderSettings(next),
@@ -156,6 +158,7 @@ export function ProvidersTab() {
                 checking={checking === 'all' || checking === status.id}
                 onRetry={() => void recheck(status.id)}
                 onChooseBinary={() => setBinaryOf(status.id)}
+                {...signIn.rowProps(status)}
                 trailing={
                   <Switch
                     className="prov-switch"
@@ -183,6 +186,7 @@ export function ProvidersTab() {
             onSave={(nextOrder, nextDefault) => persist(withOrder(current, nextOrder, nextDefault))}
           />
         )}
+        {signIn.sheet(shown)}
         {open && (
           <Sheet open onOpenChange={(next) => !next && setBinaryOf(null)} title={open.label} className="prov-sheet">
             <BinaryEditor
@@ -252,7 +256,12 @@ export function ProvidersTab() {
           onOrder={setOrder}
           onEnabled={setEnabled}
           onRetry={(id) => void recheck(id)}
-          onChooseBinary={(id) => setBinaryOf((now) => (now === id ? null : id))}
+          onChooseBinary={(id) => {
+            signIn.close();
+            setBinaryOf((now) => (now === id ? null : id));
+          }}
+          signIn={signIn}
+          onSignInOpen={() => setBinaryOf(null)}
           panel={(status) => (
             <BinaryEditor
               key={status.id}
@@ -288,6 +297,8 @@ function ProviderList({
   onEnabled,
   onRetry,
   onChooseBinary,
+  signIn,
+  onSignInOpen,
   panel,
 }: {
   statuses: ProviderStatus[];
@@ -299,6 +310,9 @@ function ProviderList({
   onEnabled: (id: ProviderId, enabled: boolean) => void;
   onRetry: (id: ProviderId) => void;
   onChooseBinary: (id: ProviderId) => void;
+  signIn: ReturnType<typeof useProviderSignIn>;
+  /** A sign-in panel opens in place of the binary editor: one panel under the list at a time */
+  onSignInOpen: () => void;
   panel: (status: ProviderStatus) => React.ReactNode;
 }) {
   const { t } = useTranslation('providers');
@@ -359,6 +373,7 @@ function ProviderList({
     >
       {statuses.map((status, at) => {
         const entry = entryOf(settings, status.id);
+        const signInProps = signIn.rowProps(status);
         return (
           <div key={status.id} className="prov-item">
             {dragging !== null && gap === at && <div className="prov-drop" aria-hidden />}
@@ -370,6 +385,15 @@ function ProviderList({
               checking={checking === 'all' || checking === status.id}
               onRetry={() => onRetry(status.id)}
               onChooseBinary={() => onChooseBinary(status.id)}
+              {...signInProps}
+              onSignIn={
+                signInProps.onSignIn &&
+                (() => {
+                  onSignInOpen();
+                  signInProps.onSignIn?.();
+                })
+              }
+              open={signInProps.open || binaryOf === status.id}
               leading={
                 <button
                   type="button"
@@ -395,6 +419,7 @@ function ProviderList({
               }
             />
             {binaryOf === status.id && panel(status)}
+            {signIn.inline(status)}
           </div>
         );
       })}

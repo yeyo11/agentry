@@ -263,9 +263,6 @@
       "credentialsFile": "credentials file from an interactive login",
       "none": "none"
     },
-    "saved": "Credential saved",
-    "savedDetail": "It applies to every new run. Verify it with a real request.",
-    "saveFailed": "Could not save the credential",
     "removed": "Stored credential removed",
     "removeFailed": "Could not remove the credential",
     "works": "The account works",
@@ -283,15 +280,7 @@
     "remove": "Remove stored credential",
     "working": "Working",
     "failed": "Failed: {{detail}}",
-    "loggedInNote": "“Logged in” only means a credential is configured; the CLI does not validate it. Use the verification to be sure.",
-    "setCredential": "Set credential",
-    "type": "Type",
-    "oauthOption": "Subscription OAuth token (claude setup-token)",
-    "apiKeyOption": "Anthropic API key",
-    "oauthToken": "OAuth token",
-    "apiKey": "API key",
-    "secretHint": "Stored in the wrapper data volume and applied to every new run. It overrides credentials from the container environment and is never returned by the API.",
-    "save": "Save credential"
+    "loggedInNote": "“Logged in” only means a credential is configured; the CLI does not validate it. Use the verification to be sure."
   },
   "instructions": {
     "variants": {
