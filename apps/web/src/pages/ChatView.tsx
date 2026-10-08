@@ -123,14 +123,13 @@ export function ChatView() {
   useEffect(() => {
     if (!loaded || atParam === null) return;
     const at = entryParam(atParam);
-    setSearch(
-      (held) => {
-        const next = new URLSearchParams(held);
-        next.delete('at');
-        return next;
-      },
-      { replace: true },
-    );
+    // From the address as it is now: `setSearch` would start from this render's, and drop what was
+    // opened since (a `?detail=` panel) while the chat loaded
+    const now = new URLSearchParams(window.location.search);
+    if (now.has('at')) {
+      now.delete('at');
+      setSearch(now, { replace: true });
+    }
     if (at === null) return;
     // A step's entry counts the main view: with the subagents' turns shown it would land elsewhere
     setSidechains(false);
