@@ -187,7 +187,11 @@ test('a row offers Sign in when signed out, and Sign out only where the vendor d
   assert.equal(offersSignIn('not-installed'), false);
   assert.equal(offersSignOut(methods('codex'), 'ready'), true);
   assert.equal(offersSignOut(methods('copilot'), 'ready'), false, 'Copilot has no documented sign-out');
-  assert.equal(offersSignOut(methods('gemini'), 'unknown', 'no-probe'), true, 'a key kept is all Gemini has');
+  assert.equal(offersSignOut(methods('gemini'), 'unknown', 'no-probe', true), true, 'a key kept is all Gemini has');
+  assert.equal(offersSignOut(methods('gemini'), 'unknown', 'no-probe', false), false, 'nothing to sign out of without a key');
+  assert.equal(offersSignIn('unknown', 'no-probe', false), true, 'Gemini with no key kept offers Sign in');
+  assert.equal(offersSignIn('unknown', 'no-probe', true), false);
+  assert.equal(offersSignIn('unknown', 'probe-timeout'), false);
   assert.equal(offersSignOut(methods('codex'), 'signed-out'), false);
   assert.equal(offersSignOut(null, 'ready'), false);
 });

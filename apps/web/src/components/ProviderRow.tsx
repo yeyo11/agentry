@@ -46,6 +46,8 @@ export interface ProviderRowProps {
   open?: boolean;
   /** Sign out, for a row that is signed in and whose vendor documents a way out */
   signOut?: ReactNode;
+  /** Sign in where the state alone gives no such action (`no-probe` with no key kept) */
+  offerSignIn?: boolean;
 }
 
 /** The plain-words reason under the state: a code the detector gave, or what ready means. */
@@ -91,6 +93,7 @@ export function ProviderRow({
   onSignIn,
   open = false,
   signOut,
+  offerSignIn = false,
 }: ProviderRowProps) {
   const { t } = useTranslation('providers');
   const reason = useProviderReason(status, enabled);
@@ -124,7 +127,9 @@ export function ProviderRow({
     </div>
   );
 
-  const actions = checking || !enabled ? [] : actionsFor(status.state, status.reason);
+  const stateActions = checking || !enabled ? [] : actionsFor(status.state, status.reason);
+  const actions: ProviderAction[] =
+    offerSignIn && !checking && enabled && !stateActions.some((a) => a.kind === 'sign-in') ? [{ kind: 'sign-in', primary: true }, ...stateActions] : stateActions;
   const buttons = actions.map((action) => (
     <ActionButton key={action.kind} action={action} status={status} open={open} onRetry={onRetry} onChooseBinary={onChooseBinary} onSignIn={onSignIn} />
   ));

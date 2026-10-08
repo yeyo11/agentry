@@ -150,16 +150,20 @@ export function timeLeft(expiresAt: string, now: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
-/** Whether a row offers Sign in: the tool is installed and says it is signed out. */
-export const offersSignIn = (state: ProviderReadinessState): boolean => state === 'signed-out';
+/**
+ * Whether a row offers Sign in: the tool is installed and says it is signed out, or it reads
+ * `no-probe` (Gemini, OpenCode: nothing to ask) and Agentry keeps no key for it yet.
+ */
+export const offersSignIn = (state: ProviderReadinessState, reason: ProviderReasonCode | null = null, keyStored = false): boolean =>
+  state === 'signed-out' || (state === 'unknown' && reason === 'no-probe' && !keyStored);
 
 /**
  * Whether a row offers Sign out: the tool works, or it reads `no-probe` because a key Agentry keeps
- * is all it has (Gemini, OpenCode), and the vendor documents a way out (not Copilot).
+ * is all it has (Gemini, OpenCode) and one is kept, and the vendor documents a way out (not Copilot).
  */
-export function offersSignOut(methods: SetupToolMethods | null, state: ProviderReadinessState, reason: ProviderReasonCode | null = null): boolean {
+export function offersSignOut(methods: SetupToolMethods | null, state: ProviderReadinessState, reason: ProviderReasonCode | null = null, keyStored = false): boolean {
   if (!methods?.signOut) return false;
-  return state === 'ready' || state === 'degraded' || (state === 'unknown' && reason === 'no-probe');
+  return state === 'ready' || state === 'degraded' || (state === 'unknown' && reason === 'no-probe' && keyStored);
 }
 
 // ---------------------------------------------------------------- Tailscale
