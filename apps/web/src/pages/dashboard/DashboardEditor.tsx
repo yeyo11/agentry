@@ -204,7 +204,7 @@ function EditFrame({ widget, editor, children }: { widget: LayoutWidget; editor:
         >
           <GripVertical {...ICON} />
         </button>
-        <span className="widget-name ellipsis">{title}</span>
+        <h2 className="widget-name ellipsis">{title}</h2>
         {sizes.length > 1 && (
           <Segmented
             className="widget-sizes"
