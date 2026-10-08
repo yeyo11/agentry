@@ -165,6 +165,8 @@ export class CodexSession implements DriverSession {
     const turn = this.queue.shift();
     if (!turn || !this.threadId) return;
     this.busy = true;
+    // Codex reads a turn only when it starts one: that is when the message reached it
+    if (turn.id) this.sink({ kind: 'delivered', ids: [turn.id] });
     const { shown, images } = text(turn);
     const schema = this.spec.jsonSchema;
     this.events.startTurn(schema !== undefined);
@@ -296,6 +298,10 @@ export class CodexSession implements DriverSession {
 
   readError(line: string): void {
     if (line.trim()) this.sink({ kind: 'stderr', text: line });
+  }
+
+  holdsTurns(): boolean {
+    return this.queue.length > 0;
   }
 
   endInput(): void {

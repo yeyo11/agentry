@@ -16,7 +16,9 @@ import {
   type ChatBackgroundTaskEntry,
   type ChatControl,
   type ChatDetail,
+  type ChatInterruptRequest,
   type ChatMessageRequest,
+  type ChatMessageResponse,
   type ChatOrchestration,
   type OrchestrationChatRole,
   type ChatOrigin,
@@ -308,11 +310,16 @@ export function effortsOf(provider: ProviderId, capabilities: readonly ProviderC
   return provider === LEGACY_PROVIDER ? [...DECISION_EFFORTS] : PORTABLE_EFFORTS;
 }
 
+/** The id a client gives a message: the CLI takes it as the stream-json `uuid` */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export class ChatService {
   private cliCache: { at: number; value: CliSession[] } | null = null;
   /** The read under way, shared by whoever asks meanwhile; `gen` tells one started before an invalidation */
   private cliPending: { gen: number; promise: Promise<CliSession[]> } | null = null;
   private cliGen = 0;
+  /** The send under way per chat: the next one waits for it */
+  private readonly sending = new Map<string, Promise<void>>();
 
   constructor(private readonly deps: ChatServiceDeps) {}
 
@@ -464,6 +471,7 @@ export class ChatService {
       continuedIn: runtime?.continuedIn ?? null,
       ...(runtime?.agentryAssistant ? { agentryAssistant: runtime.agentryAssistant } : {}),
       ...(runtime && this.deps.runtime.atLimit(runtime.id) ? { atLimit: true } : {}),
+      ...(runtime?.pending?.length ? { pending: runtime.pending } : {}),
       state,
       control,
       execution: live,
@@ -1125,15 +1133,32 @@ export class ChatService {
     return { cwd: this.deps.runtime.get(chat.id)?.cwd ?? transcript?.projectPath ?? chat.cwd, name: chat.title.slice(0, 60), model: chat.model };
   }
 
-  /** A message to a chat with a live execution. */
-  async send(id: string, request: ChatMessageRequest): Promise<ChatSummary> {
-    const chat = await this.summaryOf(id);
-    if (!chat) throw new Error('chat not found');
-    if (chat.control.mode !== 'interactive') {
-      throw new ChatConflictError(chat.control.mode === 'readOnly' ? chat.control.reason : 'This chat has no live execution: resume it to continue.', chat.control.mode === 'readOnly' ? chat.control.action : null);
-    }
-    this.deps.runtime.send(id, request.text ?? '', request.attachments ?? []);
-    return this.require(id);
+  /**
+   * A message to a chat with a live execution, answered with how it was taken and the id it goes by.
+   * Sends to one chat go one at a time: the gate reads the chat's state before writing, and two
+   * requests resolving that read in either order used to reach the agent in the other order.
+   */
+  async send(id: string, request: ChatMessageRequest): Promise<ChatMessageResponse> {
+    if (request.id !== undefined && (typeof request.id !== 'string' || !UUID_RE.test(request.id))) throw new Error('id must be a UUID');
+    const before = this.sending.get(id) ?? Promise.resolve();
+    const turn = before.then(async () => {
+      const chat = await this.summaryOf(id);
+      if (!chat) throw new Error('chat not found');
+      if (chat.control.mode !== 'interactive') {
+        throw new ChatConflictError(chat.control.mode === 'readOnly' ? chat.control.reason : 'This chat has no live execution: resume it to continue.', chat.control.mode === 'readOnly' ? chat.control.action : null);
+      }
+      return this.deps.runtime.sendMessage(id, request.text ?? '', request.attachments ?? [], request.id);
+    });
+    const settled = turn.then(
+      () => undefined,
+      () => undefined,
+    );
+    this.sending.set(id, settled);
+    void settled.then(() => {
+      if (this.sending.get(id) === settled) this.sending.delete(id);
+    });
+    const message = await turn;
+    return { ...(await this.require(id)), message };
   }
 
   /**
@@ -1153,9 +1178,13 @@ export class ChatService {
     return this.require(id);
   }
 
-  async interrupt(id: string): Promise<ChatSummary> {
+  /** Ends the running turn; with `messageId`, only while that message still waits in the agent's queue ("Send now"). */
+  async interrupt(id: string, request: ChatInterruptRequest = {}): Promise<ChatSummary> {
+    const { messageId } = request;
+    if (messageId !== undefined && typeof messageId !== 'string') throw new Error('messageId must be a string');
     this.gate(this.deps.runtime.get(id)?.provider, {}, { interrupt: true });
-    await this.deps.runtime.interrupt(id);
+    // A message the agent has already read is refused with 409: its "Send now" would cut the turn answering it
+    await this.deps.runtime.interrupt(id, messageId);
     return this.require(id);
   }
 

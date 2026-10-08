@@ -78,7 +78,7 @@ async function secondTurnThinking(rig: ReturnType<typeof claudeRig>): Promise<st
 
 // ---------- S-1: the chat reads idle while the CLI works on a queued message ----------
 
-test('S-1: a chat whose CLI is working on a message it queued is busy, not idle', { todo: 'S-1' }, async () => {
+test('S-1: a chat whose CLI is working on a message it queued is busy, not idle', async () => {
   const rig = claudeRig();
   try {
     const id = await secondTurnThinking(rig);
@@ -88,7 +88,7 @@ test('S-1: a chat whose CLI is working on a message it queued is busy, not idle'
   }
 });
 
-test('S-1: "send now" (an interrupt) reaches the CLI while it works on a queued message', { todo: 'S-1' }, async () => {
+test('S-1: "send now" (an interrupt) reaches the CLI while it works on a queued message', async () => {
   const rig = claudeRig();
   try {
     const id = await secondTurnThinking(rig);
@@ -106,7 +106,7 @@ test('S-1: "send now" (an interrupt) reaches the CLI while it works on a queued 
 
 // ---------- S-2: a message the CLI queued dies with its process, and nothing says so ----------
 
-test('S-2: a message the CLI still held when its process went away is reported as not delivered', { todo: 'S-2' }, async () => {
+test('S-2: a message the CLI still held when its process went away is reported as not delivered', async () => {
   const rig = claudeRig();
   try {
     const chat = rig.chats.start({ prompt: `HOLD ${join(rig.scratch, 'f1')}` });
@@ -120,7 +120,8 @@ test('S-2: a message the CLI still held when its process went away is reported a
     await until(() => !rig.chats.get(chat.id)?.pid, 'the process to exit');
     await pause(100);
     assert.equal(rig.ops().filter((o) => o.op === 'turn').length, 1, 'the CLI never read it');
-    const told = rig.chats.events(chat.id).some((e) => e.kind === 'notice' && JSON.stringify(e).includes('second, queued'));
+    // A `delivery` event, not a notice: the page acts on it by the message's id (docs/chat-delivery.md)
+    const told = rig.chats.events(chat.id).some((e) => e.kind === 'delivery' && e.delivery?.state === 'undelivered' && e.delivery.message?.text === 'second, queued by the CLI');
     assert.ok(told, 'nothing tells the page that the message it shows as sent was never read');
   } finally {
     await rig.close();
@@ -129,7 +130,7 @@ test('S-2: a message the CLI still held when its process went away is reported a
 
 // ---------- S-3: a message held for the replacement process has no trace and stop drops it ----------
 
-test('S-3: a message held for the next process shows in the stream at once', { todo: 'S-3' }, async () => {
+test('S-3: a message held for the next process shows in the stream at once', async () => {
   const rig = claudeRig();
   const saved = process.env.FAKE_LINGER_MS;
   process.env.FAKE_LINGER_MS = '3000';
@@ -152,7 +153,7 @@ test('S-3: a message held for the next process shows in the stream at once', { t
   }
 });
 
-test('S-3: stopping a chat that holds a message says the message was not delivered', { todo: 'S-3' }, async () => {
+test('S-3: stopping a chat that holds a message says the message was not delivered', async () => {
   const rig = claudeRig();
   const saved = process.env.FAKE_LINGER_MS;
   process.env.FAKE_LINGER_MS = '3000';
@@ -258,7 +259,7 @@ test("S-6: a Gemini or Copilot chat's transcript holds the person's own messages
   }
 });
 
-test('S-7: an ACP chat that ends its input after a turn still runs the turn queued behind it', { todo: 'S-7' }, async () => {
+test('S-7: an ACP chat that ends its input after a turn still runs the turn queued behind it', async () => {
   const { chats, close } = acpRig();
   const saved = process.env.FAKE_ACP_STEP_MS;
   process.env.FAKE_ACP_STEP_MS = '150';

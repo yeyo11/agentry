@@ -49,9 +49,11 @@ class ClaudeCodeSession implements DriverSession {
   }
 
   send(turn: UserTurn): string {
-    const { text, attachments, read } = turn;
+    const { id, text, attachments, read } = turn;
     const content = attachments.length && read ? composeContent(text, attachments, read) : text;
-    this.control.write({ type: 'user', message: { role: 'user', content } });
+    // The CLI keeps the line's `uuid` as the message's: its transcript line, the `source_uuid` of a
+    // message it reads mid-turn, and the replay that says it took the message all carry it
+    this.control.write({ type: 'user', ...(id ? { uuid: id } : {}), message: { role: 'user', content } });
     return Array.isArray(content) ? String((content.at(-1) as { text: string }).text) : text;
   }
 

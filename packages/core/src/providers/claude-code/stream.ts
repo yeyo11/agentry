@@ -136,6 +136,12 @@ export class ClaudeStream {
       return;
     }
 
+    // A message of ours read back (`--replay-user-messages`): the CLI took it. It is no entry of its
+    // own; the one the manager streamed when it was written is the same message, under the same id
+    if (type === 'user' && raw.isReplay === true) {
+      if (typeof raw.uuid === 'string' && raw.uuid) sink({ kind: 'delivered', ids: [raw.uuid] });
+      return;
+    }
     if (type === 'assistant' || type === 'user') {
       const entry = normalizeMessage(raw);
       if (!entry) return;

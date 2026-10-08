@@ -534,6 +534,13 @@
         ],
         "description": "What it was started with, when Agentry started it: absent for a chat born in a terminal"
       },
+      "pending": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ChatPendingMessage"
+        },
+        "description": "Messages sent to it that the agent has not taken yet, oldest first, and those lost on the way since; only while Agentry has a record of the chat (docs/chat-delivery.md)"
+      },
       "agentryAssistant": {
         "anyOf": [
           {
@@ -1354,6 +1361,78 @@
     ],
     "description": "Which of the configured MCP servers a chat starts with. Agentry writes the file the CLI reads and passes it as `--mcp-config` / `--strict-mcp-config`; there is no other way in."
   },
+  "ChatPendingMessage": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "text": {
+        "type": "string"
+      },
+      "attachments": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ChatPendingAttachment"
+        }
+      },
+      "state": {
+        "type": "string",
+        "enum": [
+          "written",
+          "held",
+          "undelivered"
+        ]
+      },
+      "sentAt": {
+        "type": "string"
+      },
+      "reason": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "text",
+      "attachments",
+      "state",
+      "sentAt"
+    ],
+    "description": "A message the agent has not taken yet, or one it never will. `written`: in the agent's own queue, read at its next tool boundary or as its next turn. `held`: waiting for the process that replaces one on its way out. `undelivered`: lost on the way, with `reason`."
+  },
+  "ChatPendingAttachment": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "mediaType": {
+        "type": "string"
+      },
+      "kind": {
+        "type": "string",
+        "enum": [
+          "image",
+          "pdf",
+          "file"
+        ]
+      },
+      "sizeBytes": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "mediaType",
+      "kind",
+      "sizeBytes"
+    ],
+    "description": "A file sent with a message, as the page shows it: no path on the server's disk."
+  },
   "AgentryAssistantMarker": {
     "type": "object",
     "properties": {
@@ -1566,6 +1645,10 @@
         "type": "object",
         "additionalProperties": {},
         "description": "For `notice` events only: Agentry's own words, never a provider's"
+      },
+      "delivery": {
+        "$ref": "#/components/schemas/MessageDelivery",
+        "description": "For `delivery` events: what became of one message the person sent"
       }
     },
     "required": [
@@ -1585,7 +1668,8 @@
       "stderr",
       "notice",
       "other",
-      "partial"
+      "partial",
+      "delivery"
     ],
     "description": "`partial` events are ephemeral: they carry the text generated so far for the block being streamed, reuse the seq of the last stored event, are never buffered or replayed, and are superseded by the next `message` event."
   },
@@ -1927,6 +2011,33 @@
       "taskKind"
     ],
     "description": "A background task starting, moving or ending, or the whole list being replaced."
+  },
+  "MessageDelivery": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "state": {
+        "type": "string",
+        "enum": [
+          "delivered",
+          "undelivered",
+          "carried"
+        ]
+      },
+      "message": {
+        "$ref": "#/components/schemas/ChatPendingMessage"
+      },
+      "chatId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "state"
+    ],
+    "description": "What became of one message sent to a chat, by its id (docs/chat-delivery.md). `delivered`: the agent took it, into the running turn or as a turn of its own. `undelivered`: its process went away first, or the one that should have read it could not start; `message` carries it, so the page can hand it back. `carried`: a move or a limit replay sent it on, to `chatId` (this chat on a replay)."
   },
   "EffectiveEnvironment": {
     "type": "object",
@@ -10287,6 +10398,13 @@
         ],
         "description": "What it was started with, when Agentry started it: absent for a chat born in a terminal"
       },
+      "pending": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ChatPendingMessage"
+        },
+        "description": "Messages sent to it that the agent has not taken yet, oldest first, and those lost on the way since; only while Agentry has a record of the chat (docs/chat-delivery.md)"
+      },
       "agentryAssistant": {
         "anyOf": [
           {
@@ -11238,6 +11356,10 @@
         "items": {
           "type": "string"
         }
+      },
+      "id": {
+        "type": "string",
+        "description": "The message's id, a UUID the client chooses so a retry is written once: a second request with an id already taken writes nothing and answers as the first did. The server picks one when absent."
       }
     },
     "required": [

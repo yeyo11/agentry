@@ -8,7 +8,9 @@ import type {
   ChatActivity,
   ChatContinuation,
   ChatFork,
+  ChatMessageReceipt,
   ChatOrigin,
+  ChatPendingMessage,
   ChatToolConfig,
   EffectiveEnvironment,
   Effort,
@@ -31,6 +33,37 @@ import type { BranchTracker, DriverEvent, DriverSession, ModelUsage, ProviderDri
 import { emptyTokenUsage } from './usage.ts';
 
 const MAX_EVENTS_PER_RUN = 5000;
+/** Ids remembered per chat for a retried send: far more than any page retries */
+const MAX_RECEIPTS = 500;
+/** Why a message the agent had not taken when the wrapper went away is lost */
+const RESTARTED = 'Agentry restarted before the agent read it';
+/** Lost messages kept for a page opened later: the newest ones */
+const MAX_UNDELIVERED = 20;
+
+/** A message as sent: its id, its words and its files. */
+export interface SentMessage {
+  id: string;
+  text: string;
+  attachments: Attachment[];
+  sentAt: string;
+}
+
+/** A message the agent has not taken yet: in its own queue (`written`), or held for the next process. */
+export interface PendingMessage extends SentMessage {
+  state: 'written' | 'held';
+}
+
+/** What the page sees of a message: the files without their path on the server's disk. */
+export function pendingView(message: SentMessage & { state: ChatPendingMessage['state'] }, reason?: string): ChatPendingMessage {
+  return {
+    id: message.id,
+    text: message.text,
+    attachments: message.attachments.map(({ id, name, mediaType, kind, sizeBytes }) => ({ id, name, mediaType, kind, sizeBytes })),
+    state: message.state,
+    sentAt: message.sentAt,
+    ...(reason ? { reason } : {}),
+  };
+}
 const PARTIAL_THROTTLE_MS = 50;
 
 export interface RunResult {
@@ -190,6 +223,8 @@ export interface ChatRuntime {
   backgroundTasks: BackgroundTask[];
   subagents: SubagentInfo[];
   workflows: WorkflowRun[];
+  /** Messages the agent has not taken yet, and those lost since: what the page builds its queued cards from */
+  pending?: ChatPendingMessage[];
 }
 
 /** A shell command the process started and has had no answer to yet. */
@@ -294,11 +329,31 @@ export class LiveChat {
   /** Commands a person cancelled: their failed result is the person's doing, and says nothing about how long the command takes */
   readonly cancelled = new Set<string>();
   /**
-   * Messages that arrived while the process was on its way out (stopped, or its stdin closed and it
-   * finishing background work): one process replaces it when it exits and gets all of them. Each
-   * used to schedule a replacement of its own, and three messages made three processes.
+   * Every message the agent has not taken yet, by id, in the order sent (docs/chat-delivery.md).
+   * `written`: in the agent's own queue until it reports taking it. `held`: it arrived while the
+   * process was on its way out (stopped, or its stdin closed and it finishing background work), and
+   * one process replaces it when it exits and gets all of them. Each used to schedule a replacement
+   * of its own, and three messages made three processes.
    */
-  queued: Array<{ text: string; attachments: Attachment[] }> = [];
+  readonly pending = new Map<string, PendingMessage>();
+  /** Messages lost on the way, kept until the person sends again, so a page opened later still says so */
+  undelivered: ChatPendingMessage[] = [];
+  /** Ids already taken, newest last, with how: a retried send is written once */
+  readonly receipts = new Map<string, ChatMessageReceipt>();
+  /**
+   * Whether the live process reports each message it takes. Unknown until it reports one, or until
+   * its first result arrives without having reported the message that started it: a CLI that does
+   * not, and what is written to it is tracked no further, as before.
+   */
+  reportsDelivery: boolean | null = null;
+  /** The messages of the turn under way, or of the last one: what a limit replay sends again */
+  turnMessages: SentMessage[] = [];
+  /** A result arrived since the last message: the next one starts the list again */
+  turnOver = true;
+  /** The live process has closed its pipes; until then a process that exited is still on its way out */
+  procClosed = true;
+  /** The live process's messages go on in another process (a move, a limit replay): stopping it loses none */
+  carrying = false;
   /**
    * The CLI has confirmed the session exists (its `init` arrived): from then on a process resumes
    * it. Until then the first spawn creates it, under the id Agentry chose, which is what lets a fork
@@ -312,7 +367,7 @@ export class LiveChat {
    * null for a provider that takes the id Agentry chose. Once set it never changes.
    */
   nativeId: string | null = null;
-  /** The last turn sent, files included, so a turn lost to a rate limit is replayed whole */
+  /** The last message sent, files included: a chat with none has no turn a limit could replay */
   lastUserTurn: { text: string; attachments: string[] } | null = null;
   /** The turn died against its provider's usage limit */
   rateLimited = false;
@@ -403,6 +458,8 @@ export class LiveChat {
     chat.error = last?.error ?? null;
     chat.workingDir = record.workingDir;
     chat.nativeId = record.nativeSessionId ?? null;
+    // Whatever the agent had not taken went with the processes of the wrapper that wrote this
+    chat.undelivered = (record.pending ?? []).map((m) => (m.state === 'undelivered' ? m : { ...m, state: 'undelivered', reason: RESTARTED }));
     return chat;
   }
 
@@ -439,7 +496,31 @@ export class LiveChat {
 
   /** A message waits for the exiting process to be replaced: its exit is not the chat's end */
   get respawnQueued(): boolean {
-    return this.queued.length > 0;
+    return this.held().length > 0;
+  }
+
+  /** The messages held for the process that replaces this one, oldest first */
+  held(): PendingMessage[] {
+    return [...this.pending.values()].filter((m) => m.state === 'held');
+  }
+
+  /** The messages written into the agent's queue that it has not taken yet, oldest first */
+  written(): PendingMessage[] {
+    return [...this.pending.values()].filter((m) => m.state === 'written');
+  }
+
+  /** What the page is told is still on its way, and what was lost since */
+  pendingList(): ChatPendingMessage[] {
+    return [...[...this.pending.values()].map((m) => pendingView(m)), ...this.undelivered];
+  }
+
+  /** Remembers how a message was taken, so the same id sent again is answered without writing it twice */
+  remember(receipt: ChatMessageReceipt): void {
+    this.receipts.set(receipt.id, receipt);
+    for (const id of this.receipts.keys()) {
+      if (this.receipts.size <= MAX_RECEIPTS) break;
+      this.receipts.delete(id);
+    }
   }
 
   /**
@@ -530,7 +611,15 @@ export class LiveChat {
       backgroundTasks: [...this.branches.tasks.values()],
       subagents: [...this.branches.subagents.values()],
       workflows: [...this.branches.workflows.values()],
+      pending: this.pendingList(),
     };
+  }
+
+  /** A message lost on the way: the page is told at once, and a page opened later still finds it. */
+  lose(message: SentMessage, reason: string): void {
+    const view = pendingView({ ...message, state: 'undelivered' }, reason);
+    this.undelivered = [...this.undelivered.filter((m) => m.id !== message.id), view].slice(-MAX_UNDELIVERED);
+    this.push({ kind: 'delivery', delivery: { id: message.id, state: 'undelivered', message: view } });
   }
 
   /** What the store keeps of the chat besides its executions. */
@@ -555,6 +644,7 @@ export class LiveChat {
       ...(this.nativeId ? { nativeSessionId: this.nativeId } : {}),
       tools: this.tools,
       ...(this.opts.agentryAssistant ? { agentryAssistant: this.opts.agentryAssistant } : {}),
+      ...(this.pending.size || this.undelivered.length ? { pending: this.pendingList() } : {}),
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };

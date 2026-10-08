@@ -10,6 +10,8 @@ import { UpdateTranslator } from './updates.ts';
 
 const asRecord = (value: unknown): Record<string, unknown> => (value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {});
 const asString = (value: unknown): string | undefined => (typeof value === 'string' && value ? value : undefined);
+/** How long an interrupt waits for the agent to end its turn before the turn is given up on; read at each interrupt */
+const interruptTimeoutMs = (): number => Number(process.env.AGENTRY_ACP_INTERRUPT_TIMEOUT_MS ?? 10_000);
 
 /** What `initialize` says the agent can do. */
 export interface AgentFacts {
@@ -68,7 +70,13 @@ export class AcpSession implements DriverSession {
   /** A `session/load` replays the history as updates; those are in the transcript already */
   private replaying = false;
   private readonly queue: UserTurn[] = [];
-  private running: { startedAt: number } | null = null;
+  /**
+   * The prompt under way. `abandoned`: an interrupt timed out on it, its turn was reported failed,
+   * and the agent's late reply to it only frees the session for the next prompt
+   */
+  private running: { startedAt: number; seq: number; abandoned?: boolean } | null = null;
+  /** Numbers each prompt, so a reply is matched to the prompt it answers and not to whichever runs */
+  private turnSeq = 0;
   private readonly idleWaiters: Array<() => void> = [];
   private readonly pending = new Map<string, { rpcId: number | string; options: PermissionOption[] }>();
   private mode: PermissionMode;
@@ -367,12 +375,27 @@ export class AcpSession implements DriverSession {
   private dispatch(turn: UserTurn): void {
     const sessionId = this.sessionId;
     if (!sessionId) return;
-    this.running = { startedAt: Date.now() };
+    const seq = ++this.turnSeq;
+    this.running = { startedAt: Date.now(), seq };
+    // The agent reads a prompt only when it is sent one: that is when the message reached it
+    if (turn.id) this.sink({ kind: 'delivered', ids: [turn.id] });
     this.updates.beginTurn();
     this.rpc.request('session/prompt', { sessionId, prompt: this.promptOf(turn) }).then(
-      (reply) => this.endTurn(reply),
-      (error: unknown) => this.turnFailed(error),
+      (reply) => (this.answers(seq) ? this.endTurn(reply) : undefined),
+      (error: unknown) => (this.answers(seq) ? this.turnFailed(error) : undefined),
     );
+  }
+
+  /**
+   * Whether the reply to prompt `seq` ends the turn: only the prompt under way's does, and one whose
+   * turn was given up on only lets the next prompt go, its result having been reported already
+   */
+  private answers(seq: number): boolean {
+    if (this.running?.seq !== seq) return false;
+    if (!this.running.abandoned) return true;
+    this.updates.endTurn();
+    this.idle();
+    return false;
   }
 
   /** The text, then each file: an image inline when the agent takes them, the rest as a link to the file */
@@ -447,11 +470,33 @@ export class AcpSession implements DriverSession {
     const finished = new Promise<void>((resolve) => this.idleWaiters.push(resolve));
     this.cancelPending();
     this.rpc.notify('session/cancel', { sessionId });
-    // The agent ends the turn with `cancelled`; one that never does must not hold the caller forever
-    const timer = setTimeout(() => this.idle(), 10_000);
+    // The agent ends the turn with `cancelled`; one that never does must not hold the caller forever,
+    // and the turn fails rather than let the next prompt run beside the one still going
+    const timer = setTimeout(() => this.abandon(), interruptTimeoutMs());
     timer.unref();
     await finished;
     clearTimeout(timer);
+  }
+
+  /** The interrupt timed out: the turn is reported failed, and the session stays taken until the agent answers it */
+  private abandon(): void {
+    const running = this.running;
+    if (!running || running.abandoned) return;
+    running.abandoned = true;
+    const failure = 'The agent did not stop the turn when asked to';
+    this.sink({
+      kind: 'result',
+      isError: true,
+      text: failure,
+      failure,
+      turns: 1,
+      modelUsage: [],
+      structuredOutput: undefined,
+      budget: false,
+      rateLimited: false,
+      run: { kind: 'result', text: failure, outcome: { isError: true, turns: 1, durationMs: Date.now() - running.startedAt, costUsd: 0, permissionDenials: [] } },
+    });
+    for (const resolve of this.idleWaiters.splice(0)) resolve();
   }
 
   /** A pending permission request is answered `cancelled` and withdrawn from whoever was asked */
@@ -540,6 +585,10 @@ export class AcpSession implements DriverSession {
 
   readError(line: string): void {
     this.sink({ kind: 'stderr', text: line });
+  }
+
+  holdsTurns(): boolean {
+    return this.queue.length > 0;
   }
 
   endInput(): void {

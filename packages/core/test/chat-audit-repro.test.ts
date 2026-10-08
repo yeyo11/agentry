@@ -28,7 +28,7 @@ async function until<T>(read: () => T | undefined | null | false, what: string, 
 
 type Op = { op: string; prompt?: string; text?: string; uuid?: string | null; subtype?: string };
 
-test('S-5: the id the page knows a queued message by reaches the CLI, so a merged prompt can be told apart', { todo: 'S-5' }, async () => {
+test('S-5: the id the page knows a queued message by reaches the CLI, so a merged prompt can be told apart', async () => {
   const config = tempConfig();
   const scratch = mkdtempSync(join(tmpdir(), 'agentry-repro-'));
   const queueLog = join(scratch, 'queue.jsonl');
@@ -79,7 +79,7 @@ class HeldSessionDriver extends ClaudeCodeDriver {
   }
 }
 
-test('C-8: a message held for a replacement process that cannot start is reported as not delivered', { todo: 'C-8' }, async () => {
+test('C-8: a message held for a replacement process that cannot start is reported as not delivered', async () => {
   const config = tempConfig();
   const scratch = mkdtempSync(join(tmpdir(), 'agentry-repro-'));
   const queueLog = join(scratch, 'queue.jsonl');

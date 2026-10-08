@@ -201,6 +201,10 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
       foldResult(host, chat, event);
       return;
 
+    case 'delivered':
+      foldDelivered(host, chat, event.ids);
+      return;
+
     case 'stderr':
       chat.push({ kind: 'stderr', text: event.text });
       return;
@@ -213,6 +217,26 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
       chat.push({ kind: 'notice', text: event.text });
       return;
   }
+}
+
+/**
+ * The agent took these messages: each leaves the pending list and the page hears it was delivered,
+ * one event per id, so a prompt the agent made of several messages resolves every one of them.
+ */
+function foldDelivered(host: ChatHost, chat: LiveChat, ids: string[]): void {
+  chat.reportsDelivery = true;
+  for (const id of ids) {
+    if (chat.pending.get(id)?.state !== 'written') continue;
+    chat.pending.delete(id);
+    chat.push({ kind: 'delivery', delivery: { id, state: 'delivered' } });
+  }
+  // The agent is on it: within the turn that runs, or as a turn of its own after the last result,
+  // which can stream nothing whole for a long while
+  if (chat.status === 'idle') {
+    if (chat.idleTimer) clearTimeout(chat.idleTimer);
+    chat.setStatus('busy');
+  }
+  host.persist();
 }
 
 function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, { kind: 'result' }>): void {
@@ -243,8 +267,20 @@ function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, 
   // Every result, where waitForResult only hands out the first: a chat continued by hand keeps
   // producing them, and whoever the chat works for has to hear about each
   host.emit('chat-result', chat.id, chat.lastResult);
+  if (chat.reportsDelivery === null) {
+    // The turn ended and the agent never said it took the message that started it: it does not say,
+    // and what was written to it is not followed any further
+    chat.reportsDelivery = false;
+    for (const message of chat.written()) chat.pending.delete(message.id);
+  }
+  chat.turnOver = true;
   if (chat.opts.keepAlive === false) {
-    chat.session?.endInput();
+    // A driver that still holds a turn would write it after the end of the input
+    if (!chat.session?.holdsTurns?.()) chat.session?.endInput();
+  } else if (chat.written().length > 0) {
+    // The agent has messages of ours still to read and goes on with them as its next turn: the chat
+    // is not waiting for anyone
+    if (chat.idleTimer) clearTimeout(chat.idleTimer);
   } else {
     chat.setStatus('idle');
     chat.idleTimer = setTimeout(() => chat.session?.endInput(), IDLE_TIMEOUT_MS);

@@ -9,6 +9,8 @@ import {
   type AgentryAssistantMarker,
   type Attachment,
   type ChatContinuation,
+  type ChatMessageReceipt,
+  type ChatMessageTaken,
   type ChatToolConfig,
   type ChatSettingsUpdate,
   type ChatStartOptions,
@@ -45,6 +47,7 @@ import {
   type ResolvedTools,
   type RunMeta,
   type RunResult,
+  type SentMessage,
 } from './live-chat.ts';
 import type { CoreConfig } from './paths.ts';
 import type { PermissionBroker } from './permissions.ts';
@@ -108,6 +111,32 @@ const MAX_LIMIT_REPLAYS = 1;
 /** What a request that still sends `account` is told: pinning an account went away with claude-swap */
 const ACCOUNTS_RETIRED = 'accounts were retired; see Settings → Providers';
 const MAX_ATTACHMENTS = 20;
+
+/** Why a message is lost when the chat is stopped before the agent read it */
+const STOPPED = 'the chat was stopped before the agent read it';
+/** ...and when its process ended for another reason, with nothing better to say */
+const ENDED = 'the process ended before the agent read it';
+
+/** A message Agentry sends of its own accord (a first prompt, a resume): an id of its own, now. */
+const sent = (text: string, attachments: Attachment[] = []): SentMessage => ({ id: randomUUID(), text, attachments, sentAt: now() });
+
+/** The person's entry for a message, under the message's id: the id the agent's transcript gives it too. */
+function userEntry(message: SentMessage, shown: string): TranscriptEntry {
+  return {
+    uuid: message.id,
+    role: 'user',
+    timestamp: message.sentAt,
+    model: null,
+    isSidechain: false,
+    parentToolUseId: null,
+    blocks: [
+      ...message.attachments
+        .filter((a) => a.kind !== 'file')
+        .map((a) => ({ type: a.kind === 'image' ? ('image' as const) : ('document' as const), mediaType: a.mediaType, name: a.name, uploadId: a.id })),
+      { type: 'text', text: shown },
+    ],
+  };
+}
 
 /** A chat as it was last written: its record and each execution, as JSON. */
 interface SavedChat {
@@ -556,7 +585,7 @@ export class ChatManager extends EventEmitter {
     const known = this.chats.has(id);
     if (!known) this.chats.set(id, chat);
     try {
-      this.spawnProcess(chat, request.prompt, attachments);
+      this.spawnProcess(chat, sent(request.prompt, attachments));
     } catch (err) {
       // Refused before any process started (something else holds the session): an adopted chat is not ours yet
       if (!known) this.chats.delete(id);
@@ -666,7 +695,7 @@ export class ChatManager extends EventEmitter {
     if (!existsSync(chat.cwd)) mkdirSync(chat.cwd, { recursive: true });
     this.chats.set(chat.id, chat);
     try {
-      this.spawnProcess(chat, prompt, attachments);
+      this.spawnProcess(chat, sent(prompt, attachments));
     } catch (err) {
       this.chats.delete(chat.id);
       throw err;
@@ -681,45 +710,85 @@ export class ChatManager extends EventEmitter {
    * out hands it to the single process that replaces it, and only a chat with none resumes the
    * session with --resume.
    */
-  send(id: string, text: string, attachmentIds: string[] = []): ChatRuntime {
+  send(id: string, text: string, attachmentIds: string[] = [], messageId?: string): ChatRuntime {
+    this.sendMessage(id, text, attachmentIds, messageId);
     const chat = this.chats.get(id);
     if (!chat) throw new Error('chat not found');
+    return chat.summary();
+  }
+
+  /**
+   * {@link send}, answering how the message was taken and the id it goes by (docs/chat-delivery.md).
+   * An id already taken writes nothing and answers as it did the first time: a send retried after a
+   * timeout reaches the agent once.
+   */
+  sendMessage(id: string, text: string, attachmentIds: string[] = [], messageId?: string): ChatMessageReceipt {
+    const chat = this.chats.get(id);
+    if (!chat) throw new Error('chat not found');
+    const known = messageId ? chat.receipts.get(messageId) : undefined;
+    if (known) return { ...known, duplicate: true };
     const attachments = this.resolveAttachments(attachmentIds);
     if (!text.trim() && attachments.length === 0) throw new Error('text is required');
-    if (!chat.alive) {
-      this.spawnProcess(chat, text, attachments);
-    } else if (chat.stopRequested || chat.proc?.stdin.writableEnded === true || chat.respawnQueued) {
+    const message: SentMessage = { id: messageId ?? randomUUID(), text, attachments, sentAt: now() };
+    // The person has seen the chat since: what was lost before is theirs to have sent again or not
+    chat.undelivered = [];
+    let taken: ChatMessageTaken;
+    if (this.leaving(chat)) {
       // A message written now would never be read: it waits for the replacement, behind any
       // message already waiting, so the order they were sent in is the order they arrive in
-      chat.queued.push({ text, attachments });
+      chat.pending.set(message.id, { ...message, state: 'held' });
+      chat.push({ kind: 'message', entry: userEntry(message, message.text) });
+      taken = 'held';
+    } else if (!chat.alive) {
+      this.admit({}, chat.driver);
+      this.spawnProcess(chat, message);
+      taken = 'started';
     } else {
-      this.writeUserMessage(chat, text, attachments);
+      const idle = chat.status === 'idle';
+      this.writeUserMessage(chat, message);
+      // A driver that starts the turn at once has reported it taken by now; a CLI that reports
+      // nothing leaves it written, as far as anyone here can tell
+      taken = idle || (chat.reportsDelivery !== false && !chat.pending.has(message.id)) ? 'started' : 'written';
     }
-    return chat.summary();
+    const receipt = { id: message.id, taken };
+    chat.remember(receipt);
+    this.persist();
+    return receipt;
+  }
+
+  /**
+   * The process will not read another message: stopped, its stdin closed while it finishes
+   * background work, messages already held for its replacement, or exited with its pipes still open.
+   */
+  private leaving(chat: LiveChat): boolean {
+    if (chat.alive) return chat.stopRequested || chat.proc?.stdin.writableEnded === true || chat.respawnQueued;
+    return chat.proc !== null && !chat.procClosed;
   }
 
   /** The process has exited: one process takes every message that waited for it. */
   private drainQueue(chat: LiveChat): void {
-    const queued = chat.queued;
-    chat.queued = [];
-    const [next, ...rest] = queued;
+    const held = chat.held();
+    const [next, ...rest] = held;
     if (!next) return;
+    for (const message of held) chat.pending.delete(message.id);
     // Something that heard the chat end may have resumed it already: then that process gets them all
     if (chat.alive) {
-      for (const message of queued) this.writeUserMessage(chat, message.text, message.attachments);
+      for (const message of held) this.writeUserMessage(chat, message, false);
       return;
     }
     try {
-      this.spawnProcess(chat, next.text, next.attachments);
+      this.admit({}, chat.driver);
+      this.spawnProcess(chat, next, false);
     } catch (err) {
       chat.error = err instanceof Error ? err.message : String(err);
-      // The exit ended the chat while a message was waiting; that message is lost, and anyone
-      // waiting for its result has to hear so
+      // The exit ended the chat while messages waited, and nothing will read them: the page is told
+      // each one was lost, and anyone waiting for a result has to hear the chat ended
+      for (const message of held) chat.lose(message, chat.error);
       chat.endedAt = null;
       this.finalize(chat, 'failed');
       return;
     }
-    for (const message of rest) this.writeUserMessage(chat, message.text, message.attachments);
+    for (const message of rest) this.writeUserMessage(chat, message, false);
   }
 
   /** Looks the uploads up before anything starts, so a bad id fails the request, not the turn. */
@@ -741,8 +810,11 @@ export class ChatManager extends EventEmitter {
     const chat = this.chats.get(id);
     if (!chat) throw new Error('chat not found');
     chat.stopRequested = true;
-    // Stopping means none of them is wanted any more
-    chat.queued = [];
+    // Stopping means none of them is wanted any more, and the page is told so for each
+    for (const message of chat.held()) {
+      chat.pending.delete(message.id);
+      if (!chat.carrying) chat.lose(message, STOPPED);
+    }
     const proc = chat.proc;
     if (!chat.alive) {
       // Nothing of this wrapper's: what is left is a process a previous one started on this chat
@@ -769,12 +841,21 @@ export class ChatManager extends EventEmitter {
    * Ends the current turn and keeps the process: the CLI withdraws any prompt it was holding and
    * waits for the next message, unlike `stop`, which takes the process down.
    */
-  async interrupt(id: string): Promise<ChatRuntime> {
+  async interrupt(id: string, messageId?: string): Promise<ChatRuntime> {
     const chat = this.chats.get(id);
     if (!chat) throw new Error('chat not found');
     if (!chat.alive || !chat.session) throw new Error('the chat has no live process to interrupt');
-    if (chat.status !== 'busy' && chat.status !== 'starting') return chat.summary();
-    chat.interruptRequested = true;
+    // "Send now" for a message the agent has already taken would cut the turn answering it
+    if (messageId !== undefined && chat.pending.get(messageId)?.state !== 'written') {
+      throw new ChatRefusal('the agent has already read this message, or it is not waiting in this chat', 409);
+    }
+    // Its input is closed: nothing written now would be read, and the turn is already over
+    if (chat.proc?.stdin.writableEnded) return chat.summary();
+    // Sent whatever the status says: the agent answers it harmlessly between turns, and a turn on a
+    // queued message can be under way before anything of it has been streamed. Only a turn that
+    // can end is marked: an idle process has no result coming to clear the mark
+    const turning = chat.status === 'busy' || chat.status === 'starting' || chat.written().length > 0;
+    if (turning) chat.interruptRequested = true;
     try {
       await chat.session.interrupt();
     } catch (err) {
@@ -954,7 +1035,7 @@ export class ChatManager extends EventEmitter {
    * The only place a CLI process starts, and it becomes the chat's at once: every process is tracked
    * by the chat it works for, and a chat never has two.
    */
-  private spawnProcess(chat: LiveChat, prompt: string, attachments: Attachment[] = []): void {
+  private spawnProcess(chat: LiveChat, first: SentMessage, announce = true): void {
     if (chat.alive) throw new ChatRefusal('the chat already has a live process');
     const holders = this.sessionHolders(chat);
     if (holders.length) {
@@ -975,6 +1056,9 @@ export class ChatManager extends EventEmitter {
     chat.heartbeats.clear();
     chat.openCommands.clear();
     chat.cancelled.clear();
+    // Whether this process reports what it takes is its own to show
+    chat.reportsDelivery = null;
+    chat.carrying = false;
     chat.beginExecution();
     // Whatever the last process was doing went with it
     chat.activity.clear();
@@ -1005,6 +1089,7 @@ export class ChatManager extends EventEmitter {
     };
     if (token) this.chatTokens.attach(token, proc.pid);
     chat.proc = proc;
+    chat.procClosed = false;
     chat.procStartedAt = now();
     // The chat's status follows the process it tracks and no other: an earlier process ending late
     // used to mark the chat failed while its current one was still working
@@ -1030,6 +1115,7 @@ export class ChatManager extends EventEmitter {
       revokeToken();
       if (!current()) return;
       chat.error = err.message;
+      chat.procClosed = true;
       this.finalize(chat, 'failed');
     });
     // The token goes as soon as the process is gone; what the chat becomes waits for `close`, which
@@ -1039,6 +1125,7 @@ export class ChatManager extends EventEmitter {
     proc.on('close', (code) => {
       revokeToken();
       if (!current()) return;
+      chat.procClosed = true;
       if (chat.stopRequested) this.finalize(chat, 'stopped');
       else if (code === 0) this.finalize(chat, 'completed');
       else {
@@ -1050,31 +1137,30 @@ export class ChatManager extends EventEmitter {
 
     // Recorded at once: a wrapper that dies from here on leaves an execution to read back as interrupted, not a gap
     this.persist();
-    this.writeUserMessage(chat, prompt, attachments);
+    this.writeUserMessage(chat, first, announce);
   }
 
-  private writeUserMessage(chat: LiveChat, text: string, attachments: Attachment[] = []): void {
+  /**
+   * Writes a message to the live process, under its id, and keeps it as pending until the agent
+   * reports taking it. `announce`: stream it now; a held message was streamed when it arrived.
+   */
+  private writeUserMessage(chat: LiveChat, message: SentMessage, announce = true): void {
+    const { text, attachments } = message;
     chat.lastUserTurn = { text, attachments: attachments.map((a) => a.id) };
+    if (chat.turnOver) {
+      chat.turnMessages = [];
+      chat.turnOver = false;
+    }
+    chat.turnMessages.push(message);
     if (chat.idleTimer) clearTimeout(chat.idleTimer);
+    // Before the write: a driver that starts the turn at once reports it taken from inside `send`
+    if (chat.reportsDelivery !== false) chat.pending.set(message.id, { ...message, state: 'written' });
     const uploads = this.uploads;
-    const shown = chat.session?.send({ text, attachments, ...(uploads ? { read: (id: string) => uploads.read(id).bytes } : {}) }) ?? text;
-    const entry: TranscriptEntry = {
-      uuid: randomUUID(),
-      role: 'user',
-      timestamp: now(),
-      model: null,
-      isSidechain: false,
-      parentToolUseId: null,
-      blocks: [
-        ...attachments
-          .filter((a) => a.kind !== 'file')
-          .map((a) => ({ type: a.kind === 'image' ? ('image' as const) : ('document' as const), mediaType: a.mediaType, name: a.name, uploadId: a.id })),
-        { type: 'text', text: shown },
-      ],
-    };
+    const shown = chat.session?.send({ id: message.id, text, attachments, ...(uploads ? { read: (id: string) => uploads.read(id).bytes } : {}) }) ?? text;
+    const entry = userEntry(message, shown);
     // A provider whose transcript Agentry keeps itself has no other record of what the person said
     recordEntry(this.host, chat, entry);
-    chat.push({ kind: 'message', entry });
+    if (announce) chat.push({ kind: 'message', entry });
     chat.setStatus('busy');
   }
 
@@ -1096,6 +1182,11 @@ export class ChatManager extends EventEmitter {
     const execution = chat.execution;
     if (execution) {
       Object.assign(execution, { endedAt: chat.endedAt, outcome: executionOutcome(status), error: chat.error });
+    }
+    // What the agent still had in its queue died with it; what waits for the next process does not
+    for (const message of chat.written()) {
+      chat.pending.delete(message.id);
+      if (!chat.carrying) chat.lose(message, chat.stopRequested ? STOPPED : (chat.error ?? ENDED));
     }
     chat.activity.clear();
     chat.setStatus(status);
@@ -1158,13 +1249,24 @@ export class ChatManager extends EventEmitter {
     chat.limitReplays++;
     chat.rateLimited = false;
     chat.limitRequested = false;
+    // The turn that died is its first message and every one written while it ran, and whatever the
+    // agent had not taken yet goes along with them, in the order they were sent
+    const waiting = new Set(chat.pending.keys());
+    const turn = [...chat.turnMessages.filter((m) => !waiting.has(m.id)), ...chat.pending.values()].sort((a, b) => a.sentAt.localeCompare(b.sentAt));
     // A live process may hold state from before the reset: a respawn starts clean
     if (chat.alive) {
       const proc = chat.proc;
+      chat.carrying = true;
       this.stop(id);
       if (proc) await once(proc, 'close');
     }
-    this.send(id, chat.lastUserTurn.text, chat.lastUserTurn.attachments);
+    chat.pending.clear();
+    for (const message of turn) {
+      // One that never reached the agent keeps the id the page knows it by; one the transcript
+      // already has goes again under an id of its own
+      if (waiting.has(message.id)) chat.receipts.delete(message.id);
+      this.sendMessage(id, message.text, message.attachments.map((a) => a.id), waiting.has(message.id) ? message.id : undefined);
+    }
     return true;
   }
 
@@ -1181,10 +1283,21 @@ export class ChatManager extends EventEmitter {
     if (from.continuedIn) throw new ChatRefusal('this chat was already continued on another provider', 409);
     const driver = this.driverFor(spec.provider);
     const proc = from.alive ? from.proc : null;
+    // What the old agent had not taken yet goes on in the new chat, after its first turn
+    const carried = [...from.pending.values()];
+    from.carrying = true;
     if (from.alive) this.stop(fromId);
     if (proc) await once(proc, 'close');
-    this.admit({}, driver);
-    const attachments = this.resolveAttachments(spec.attachments);
+    from.pending.clear();
+    from.carrying = false;
+    let attachments: Attachment[];
+    try {
+      this.admit({}, driver);
+      attachments = this.resolveAttachments(spec.attachments);
+    } catch (err) {
+      for (const message of carried) from.lose(message, err instanceof Error ? err.message : String(err));
+      throw err;
+    }
     const { opts } = from;
     const toolConfig = spec.toolConfig ?? null;
     const next: NewChat = {
@@ -1211,11 +1324,18 @@ export class ChatManager extends EventEmitter {
     const at = now();
     chat.continuedFrom = { chatId: from.id, provider: from.provider, action: spec.action, at, moveId: spec.moveId };
     from.continuedIn = { chatId: chat.id, provider: chat.provider, action: spec.action, at, moveId: spec.moveId };
+    let started: ChatRuntime;
     try {
-      return this.begin(chat, spec.prompt, attachments);
+      started = this.begin(chat, spec.prompt, attachments);
     } catch (err) {
       from.continuedIn = null;
+      for (const message of carried) from.lose(message, err instanceof Error ? err.message : String(err));
       throw err;
     }
+    for (const message of carried) {
+      this.sendMessage(chat.id, message.text, message.attachments.map((a) => a.id), message.id);
+      from.push({ kind: 'delivery', delivery: { id: message.id, state: 'carried', chatId: chat.id } });
+    }
+    return carried.length ? chat.summary() : started;
   }
 }
