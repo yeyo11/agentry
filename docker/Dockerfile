@@ -26,8 +26,6 @@ RUN pnpm --filter @agentry/web build \
 FROM node:26-bookworm-slim
 
 # Tools Claude Code relies on when working inside projects (openssh-client is git's, over ssh).
-# The tunnel's `tailscale` CLI is not here: the host's Tailscale is not visible from a container, so
-# the tunnel stays off in this image unless the operator sets AGENTRY_TUNNEL=on and provides one.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl git openssh-client procps ripgrep jq python3 \
  && rm -rf /var/lib/apt/lists/*
@@ -65,6 +63,29 @@ RUN set -eu; cd /tmp \
  && tar -xzf "$glab_tar" -C /usr/local/bin --strip-components=1 bin/glab \
  && rm -f /tmp/gh* /tmp/glab* \
  && gh --version && glab --version
+
+# Tailscale, for Settings > Remote access (docs/tunnel.md): the host's Tailscale is not visible from
+# a container, so the image carries its own CLI and daemon, Tailscale's static linux amd64 build.
+# The entrypoint starts tailscaled in userspace networking (no root, no NET_ADMIN, no /dev/net/tun),
+# and the person signs it in from the app. Pinned to the version its sign-in was recorded with
+# (packages/core/test/fixtures/logins/tailscale-up.*), and checked the same two ways as gh and glab:
+# the pinned digest must be the one pkgs.tailscale.com publishes beside the file, and the file must
+# hash to it. To bump it, set the version and take the digest from
+#   curl -fsSL https://pkgs.tailscale.com/stable/tailscale_<v>_amd64.tgz.sha256
+# /run/tailscale holds the daemon's socket where the CLI looks by default, so neither Agentry nor
+# anyone else passes --socket; it belongs to the user tailscaled runs as (/var/run is /run here).
+ARG TAILSCALE_VERSION=1.102.4
+ARG TAILSCALE_SHA256=50748df1045e60b5b695f19f4c56b0da36c019948b440fb456b6584a50f0d8b9
+RUN set -eu; cd /tmp \
+ && ts_tar="tailscale_${TAILSCALE_VERSION}_amd64.tgz" \
+ && curl -fsSL -o "$ts_tar" "https://pkgs.tailscale.com/stable/${ts_tar}" \
+ && curl -fsSL -o ts-checksum.txt "https://pkgs.tailscale.com/stable/${ts_tar}.sha256" \
+ && [ "$(tr -d '[:space:]' < ts-checksum.txt)" = "${TAILSCALE_SHA256}" ] \
+ && echo "${TAILSCALE_SHA256}  ${ts_tar}" | sha256sum -c - \
+ && tar -xzf "$ts_tar" -C /usr/local/bin --strip-components=1 "tailscale_${TAILSCALE_VERSION}_amd64/tailscale" "tailscale_${TAILSCALE_VERSION}_amd64/tailscaled" \
+ && rm -f /tmp/tailscale_* /tmp/ts-checksum.txt \
+ && tailscale version && tailscaled --version \
+ && mkdir -p /run/tailscale && chown node:node /run/tailscale
 
 # Volumes are owned by the non-root user (bypassPermissions refuses to run as root)
 RUN mkdir -p /app /workspace /data /home/node/.claude \
@@ -124,9 +145,10 @@ COPY --from=build --chown=node:node /app/apps/api/dist/mcp.mjs /app/mcp.mjs
 COPY --from=build --chown=node:node /app/apps/web/dist /app/web
 
 # Keeping .claude.json inside the config dir means one volume persists the whole account setup.
-# AGENTRY_DISTRIBUTION tells the UI that an update here is a new image, not something it can install,
-# and keeps the tunnel off unless AGENTRY_TUNNEL=on: from inside the container it would reach the
-# server around the published port, the operator's proxy and its TLS (docs/plans/tunnel.md).
+# AGENTRY_DISTRIBUTION tells the UI that an update here is a new image, not something it can install.
+# The tunnel is on by default because the entrypoint runs a tailscaled of Agentry's own; it reaches
+# the server on 127.0.0.1, around the published port and the operator's proxy, which is why
+# AGENTRY_TUNNEL=off turns it, and that daemon, off (docs/deploy.md, "The tunnel in Docker").
 ENV NODE_ENV=production \
     AGENTRY_PID_FILE=/tmp/agentry.pid \
     PORT=8787 \
@@ -160,11 +182,14 @@ VOLUME ["/home/node/.claude", "/workspace", "/data"]
 # The script also ends the server after a few failed probes, which is what makes a restart policy
 # act on an unhealthy container (see docs/deploy.md)
 COPY --chown=node:node --chmod=755 docker/healthcheck.sh /app/healthcheck.sh
+COPY --chown=node:node --chmod=755 docker/entrypoint.sh /app/entrypoint.sh
 HEALTHCHECK --interval=30s --timeout=15s --start-period=20s --retries=3 \
   CMD ["/app/healthcheck.sh"]
 
 # Exec form with no package manager in between: `docker stop` signals the server itself, so the
 # container's exit status is the server's (0) and not a package manager's report of a killed child
 # (143). The pid file it writes is still how the healthcheck finds it, since `init: true` means the
-# server is not PID 1.
+# server is not PID 1. The entrypoint starts tailscaled, then execs this command, so the server is
+# still what the signal reaches.
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["node", "/app/api.mjs"]

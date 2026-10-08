@@ -159,6 +159,8 @@ test('the healthcheck ends the server only after the configured run of failed pr
 // the Dockerfile and the healthcheck: each is useless if one of the others moves.
 test('the image starts the compiled API instead of transpiling the source on every boot', () => {
   assert.match(dockerfile, /^CMD \["node", "\/app\/api\.mjs"\]$/m);
+  // The entrypoint starts tailscaled and then becomes that command, so the server still gets the signal
+  assert.match(dockerfile, /^ENTRYPOINT \["\/app\/entrypoint\.sh"\]$/m);
   assert.match(dockerfile, /^COPY --from=build .*\/app\/apps\/api\/dist\/api\.mjs \/app\/api\.mjs$/m);
 
   // Whatever the last stage does not carry cannot be part of the running image
@@ -258,10 +260,9 @@ test('a listen that failed for any other reason is not retried away', async (t) 
   await assert.rejects(listenOn(app, 8787, '203.0.113.1'), (err: NodeJS.ErrnoException) => err.code !== 'EADDRINUSE');
 });
 
-// Open question 2 of docs/plans/tunnel.md: in the image the container sees neither the host's
-// tailscale CLI nor its daemon, and a way in around the published port and the proxy is the
-// operator's to open, so the operator opts in.
-test('the image does not offer the tunnel until the operator turns it on', async (t) => {
+// In the image the container sees neither the host's tailscale CLI nor its daemon, so the tunnel is
+// offered only once the entrypoint started a tailscaled of the image's own and said so.
+test('the image offers the tunnel only with a tailscaled of its own, and AGENTRY_TUNNEL=off still wins', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'agentry-pkg-tunnel-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const build = (extra: Record<string, string>) =>
@@ -294,16 +295,23 @@ test('the image does not offer the tunnel until the operator turns it on', async
   const opened = build({ AGENTRY_TUNNEL: 'on' });
   t.after(() => opened.shutdown());
   assert.equal(opened.tunnel.status().enabled, true);
+
+  const managed = build({ AGENTRY_TAILSCALE_MANAGED: '1' });
+  t.after(() => managed.shutdown());
+  assert.deepEqual([managed.tunnel.status().enabled, managed.tunnel.status().managed], [true, true]);
+  const off = build({ AGENTRY_TAILSCALE_MANAGED: '1', AGENTRY_TUNNEL: 'off' });
+  t.after(() => off.shutdown());
+  assert.equal(off.tunnel.status().enabled, false);
 });
 
-test('the compose file, the .env example and the chart all say how to turn the tunnel on', () => {
+test('the compose file, the .env example and the chart all say how to turn the tunnel off', () => {
   const read = (path: string) => readFileSync(resolve(here, '../../..', path), 'utf8');
   // Compose hands .env to the container whole: documenting the variable there is what makes it reachable
   assert.match(read('docker-compose.yml'), /^\s+env_file: \.env$/m);
-  assert.match(read('.env.example'), /^# AGENTRY_TUNNEL=on$/m);
+  assert.match(read('.env.example'), /^# AGENTRY_TUNNEL=off$/m);
 
   const values = read('deploy/helm/agentry/values.yaml');
-  assert.match(values, /^tunnel:\n {2}enabled: false$/m, 'the chart keeps the tunnel off unless the release turns it on');
+  assert.match(values, /^tunnel:\n {2}enabled: true$/m, 'the chart offers the tunnel as the image does');
   // Written whatever the value, so a release that says "off" is off even on an image that changed its default
   assert.match(read('deploy/helm/agentry/templates/deployment.yaml'), /- name: AGENTRY_TUNNEL\n\s+value: \{\{ ternary "on" "off" \.Values\.tunnel\.enabled \| quote \}\}/);
 });

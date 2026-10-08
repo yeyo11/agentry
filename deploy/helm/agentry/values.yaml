@@ -63,15 +63,15 @@ auth:
     audience: ""
     clientId: ""
 
-# The tunnel through Tailscale (Settings > Remote access, `tailscale serve`), off unless you turn it
-# on here. The image ships no `tailscale` CLI and the pod sees no tailscaled, so turning it on is
-# only useful with a Tailscale sidecar whose CLI and socket the container can reach; the tab says
-# what is missing otherwise. Once it opens, tailnet members reach the server on 127.0.0.1 inside the
-# pod, around this chart's Service, your Ingress and any NetworkPolicy on ingress. Turned on, it
-# still refuses to open while auth is `none`, and only opens when someone starts it from the UI (or
-# turns on "start with Agentry" there).
+# The tunnel through Tailscale (Settings > Remote access, `tailscale serve`, never Funnel), on as in
+# the image: its entrypoint starts a tailscaled of its own in userspace networking (no NET_ADMIN, no
+# /dev/net/tun), with its node state on the data volume, and the person signs it in from the app.
+# Once it opens, tailnet members reach the server on 127.0.0.1 inside the pod, around this chart's
+# Service, your Ingress and any NetworkPolicy on ingress. It refuses to open while auth is `none`,
+# and only opens when someone starts it from the UI (or turns on "start with Agentry" there).
+# `false` starts no tailscaled in the pod and offers no tunnel.
 tunnel:
-  enabled: false
+  enabled: true
 
 # Extra environment variables for the container (AGENTRY_MAX_CONCURRENT_RUNS, AGENTRY_CLI_UPDATE_CHECK...)
 env: {}

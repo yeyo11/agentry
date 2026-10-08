@@ -25,6 +25,8 @@ services:
         - GH_SHA256
         - GLAB_VERSION
         - GLAB_SHA256
+        - TAILSCALE_VERSION
+        - TAILSCALE_SHA256
     image: agentry:dev
     init: true # reaps the claude child processes
     env_file: .env
@@ -37,7 +39,7 @@ services:
     # once and the data follows the name, not the folder (docs/deploy.md).
     volumes:
       - claude-config:/home/node/.claude # account config: settings, MCP servers, CLAUDE.md, sessions
-      - wrapper-data:/data # wrapper state: SQLite store, provider settings, credential, uploads, the other agents', gh's and glab's sign-ins
+      - wrapper-data:/data # wrapper state: SQLite store, provider settings, credential, uploads, the other agents', gh's and glab's sign-ins, the Tailscale node of Remote access
       - ./workspace:/workspace # projects Claude works on
     # The image's healthcheck ends the server after three failed probes and this policy starts it
     # again: Docker itself never restarts an unhealthy container, only one that exited
