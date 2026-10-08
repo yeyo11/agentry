@@ -67,6 +67,7 @@
     "./i18n/language": "./src/i18n/language.ts",
     "./i18n/resources": "./src/i18n/resources.ts",
     "./lib/calendar": "./src/lib/calendar.ts",
+    "./lib/clipboard": "./src/lib/clipboard.ts",
     "./lib/format": "./src/lib/format.ts",
     "./lib/live": "./src/lib/live.ts",
     "./lib/lru": "./src/lib/lru.ts",

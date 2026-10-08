@@ -22,6 +22,7 @@ import { Tooltip } from './controls/Tooltip';
 import { ICON, ICON_SM } from './icons';
 import { Illustration, type IllustrationName, type IllustrationSize, type IllustrationTone } from './illustrations';
 import { AnimatePresence, motion, SlidingIndicator, useIndicatorId } from './motion';
+import { copyText } from '../lib/clipboard';
 
 const TONES = {
   starting: 'info',
@@ -190,17 +191,22 @@ export function usePageTitle(title: string | undefined): void {
 export function CopyButton({ text, label }: { text: string; label?: string }) {
   const { t } = useTranslation(['primitives', 'common']);
   const [copied, setCopied] = useState(false);
+  const [failed, setFailed] = useState(false);
   const name = label ?? t('ui.copy');
   return (
-    <Tooltip content={copied ? t('ui.copied') : name}>
+    <Tooltip content={copied ? t('ui.copied') : failed ? t('ui.copyFailed') : name}>
       <button
         type="button"
         className="icon-btn"
-        aria-label={copied ? t('ui.copied') : name}
+        aria-label={copied ? t('ui.copied') : failed ? t('ui.copyFailed') : name}
         onClick={() => {
-          void navigator.clipboard?.writeText(text).then(() => {
-            setCopied(true);
-            window.setTimeout(() => setCopied(false), 1500);
+          void copyText(text).then((done) => {
+            setCopied(done);
+            setFailed(!done);
+            window.setTimeout(() => {
+              setCopied(false);
+              setFailed(false);
+            }, 1500);
           });
         }}
       >

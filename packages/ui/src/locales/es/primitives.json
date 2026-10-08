@@ -60,7 +60,8 @@
     "requestFailed": "La petición ha fallado",
     "unsavedChangesLabel": "cambios sin guardar",
     "agentIsWorking": "{{agent}} está trabajando",
-    "agentGeneric": "El agente"
+    "agentGeneric": "El agente",
+    "copyFailed": "No se ha podido copiar"
   },
   "controls": {
     "decrease": "Reducir",

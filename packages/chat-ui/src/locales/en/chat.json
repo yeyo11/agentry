@@ -309,7 +309,8 @@
     "created": "{{key}} created in Backlog",
     "createdDetail": "Linked to this chat",
     "openTask": "Open",
-    "createFailed": "The task could not be created"
+    "createFailed": "The task could not be created",
+    "copyFailed": "Could not copy the message"
   },
   "edits": {
     "label": "Files this step edited",

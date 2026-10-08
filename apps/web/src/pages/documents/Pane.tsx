@@ -20,6 +20,7 @@ import { shortcut } from '../../lib/shortcut';
 import { taskPath } from '../../lib/work-items';
 import { mainTie } from './model';
 import { RoleAvatar, useRoleName } from '../team/RoleAvatar';
+import { copyText } from '@agentry/ui/lib/clipboard';
 
 const Markdown = lazy(() => import('@agentry/ui/components/Markdown'));
 
@@ -191,7 +192,7 @@ export function DocumentPane({
   };
 
   const entries: MenuEntry[] = [
-    { id: 'copy', label: t('pane.copyPath'), icon: Copy, onSelect: () => void navigator.clipboard?.writeText(path) },
+    { id: 'copy', label: t('pane.copyPath'), icon: Copy, onSelect: () => void copyText(path).then((copied) => (copied ? toast.success(t('pane.pathCopied')) : toast.error(t('pane.copyFailed')))) },
     {
       id: 'delete',
       label: t('pane.delete'),

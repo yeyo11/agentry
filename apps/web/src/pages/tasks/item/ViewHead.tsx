@@ -17,6 +17,7 @@ import { useMoveItem, type ItemActions } from './hooks';
 import { deleteWarning, workOnBlocker } from './model';
 import { ITEM_PANEL_PARAM } from './Panel';
 import { WorkOnDialog } from './WorkOn';
+import { copyText } from '@agentry/ui/lib/clipboard';
 
 /** Where a work item is shown: its own page, or the panel the board opens beside itself. */
 export type ItemVariant = 'page' | 'panel';
@@ -108,7 +109,7 @@ export function ItemMenu({ item, variant, withCopy }: { item: WorkItemDetail; va
     },
     onError: (error) => toast.error(t('errors.delete'), error),
   });
-  const copy = () => void navigator.clipboard?.writeText(`${location.origin}${taskPath(item.key)}`).then(() => toast.success(t('actions.copied')));
+  const copy = () => void copyText(`${location.origin}${taskPath(item.key)}`).then((copied) => (copied ? toast.success(t('actions.copied')) : toast.error(t('actions.copyFailed'))));
   return (
     <MoreActions
       label={t('actions.more')}
@@ -157,7 +158,7 @@ export function CopyLink({ item }: { item: WorkItemDetail }) {
         type="button"
         className="icon-btn"
         aria-label={t('actions.copyLink')}
-        onClick={() => void navigator.clipboard?.writeText(`${location.origin}${taskPath(item.key)}`).then(() => toast.success(t('actions.copied')))}
+        onClick={() => void copyText(`${location.origin}${taskPath(item.key)}`).then((copied) => (copied ? toast.success(t('actions.copied')) : toast.error(t('actions.copyFailed'))))}
       >
         <Link2 {...ICON_SM} />
       </button>
