@@ -1,16 +1,17 @@
 ---
 created_at: 2026-09-30T21:00:00Z
-updated_at: 2026-09-30T21:00:00Z
+updated_at: 2026-10-08T12:00:00Z
 tags:
     - plan
     - mcp
     - assistant
     - tokens
-    - proposed
+    - built
 ---
 # Plan: the format of what Agentry hands to a model
 
-Status: **proposed on 2026-09-30**, not started. It belongs to the Agentry MCP server
+Status: **built on 2026-10-08** (CW-33): compact JSON and chosen fields shipped, TOON not adopted. See
+[Outcome](#outcome). It belongs to the Agentry MCP server
 ([[plans/agentry-mcp-server.md]], not yet on `main`), whose rule today is "one `text` content
 holding compact JSON", and to anything else Agentry writes into a prompt: the orchestration
 planner's context, a worker's dependency results, the assistant's sources.
@@ -81,6 +82,37 @@ tokenizer endpoint.
 
 - Changing the REST API's format. JSON stays the contract.
 - Changing what the CLI's stream-json looks like, which is not Agentry's to choose.
+
+## Outcome
+
+Built on 2026-10-08 (CW-33). Steps 1, 2 and 4 of the proposal are in `packages/mcp`
+(`fields.ts` picks the fields of the nine list tools; nothing is indented, and a test checks it).
+The bench, `scripts/wire-format-bench.mjs`, ran once on the real data of the dev server with
+`claude -p --output-format stream-json --model sonnet`, three questions per tool, once per format.
+Tokens are the CLI's own input count (`input_tokens` plus cache creation and reads), minus the
+CLI's fixed preamble per call, summed over the three questions of a tool. The run cost 0.36 USD.
+
+| Tool | Rows | JSON tokens | TOON tokens | Saving | JSON right | TOON right |
+| --- | --- | --- | --- | --- | --- | --- |
+| `list_chats` | 50 | 19,220 | 19,922 | +4 % (worse) | 3/3 | 3/3 |
+| `list_projects` | 5 | 1,834 | 1,897 | +3 % (worse) | 3/3 | 3/3 |
+| `list_orchestrations` | 30 | 15,827 | 16,334 | +3 % (worse) | 3/3 | 3/3 |
+| `list_providers` | 5 | 588 | 567 | −4 % | 3/3 | 3/3 |
+
+Decision per tool: **no tool answers TOON**; every one stays compact JSON.
+
+- The 15 % bar was not reached by any tool; the best, `list_providers`, saves 4 % on 5 rows.
+- Answers were equally right in both formats, so the deciding factor was size alone.
+- `list_chats` and `list_projects` are flat but their rows are ragged, because absent and null
+  fields are left out and chats then have three different key sets. TOON writes its one-header
+  table only for uniform rows, so it falls back to a per-item layout there. `list_orchestrations`
+  nests its task counts. Making rows uniform to favour TOON would spend tokens on nulls, which
+  field selection exists to save.
+- `@toon-format/toon` (4.1.1, no dependencies) is therefore **not** a dependency of any package.
+  To rerun the bench, add it to `packages/mcp` for the run (`pnpm --filter @agentry/mcp add -D @toon-format/toon`)
+  and drop it afterwards.
+- Limits of the measure: one run, three questions per tool, one model, the data of one day. It is
+  enough to say TOON does not clear 15 % here, not to rank the formats.
 
 ## Related
 
