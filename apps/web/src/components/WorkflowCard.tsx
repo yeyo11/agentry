@@ -5,6 +5,7 @@ import i18n from '../i18n';
 import { useDetailPanel } from '../lib/detail';
 import { durationBetween, formatDuration, formatNumber, truncate } from '@agentry/ui/lib/format';
 import { BranchStatus } from '@agentry/chat-ui/components/ChatBadges';
+import { ProgressBar } from '@agentry/ui/components/ProgressBar';
 import { CodeBlock } from '@agentry/ui/components/CodeBlock';
 // Direct import: the chat page that renders this is in the shell bundle
 import { Collapsible } from '@agentry/ui/components/controls/Collapsible';
@@ -85,11 +86,7 @@ export function WorkflowCard({
         <span>{durationBetween(workflow.startedAt, workflow.endedAt)}</span>
         {workflow.totalTokens !== null && <span>{tokens(workflow.totalTokens)}</span>}
       </div>
-      {total > 0 && (
-        <div className="wf-progress" role="progressbar" aria-label={t('workflowCard.agentsDoneLabel')} aria-valuemin={0} aria-valuemax={total} aria-valuenow={done}>
-          <span style={{ width: `${(done / total) * 100}%` }} />
-        </div>
-      )}
+      {total > 0 && <ProgressBar size="sm" counts={{ done, pending: total - done }} />}
       {byPhase(workflow)
         .filter(([name]) => phase === undefined || name === phase)
         .map(([name, agents]) => (

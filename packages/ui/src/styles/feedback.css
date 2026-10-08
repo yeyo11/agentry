@@ -543,13 +543,6 @@ a.badge:hover {
   font-weight: 600;
 }
 
-.meter-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-
 .meter-track {
   height: 6px;
   border-radius: var(--radius-pill);

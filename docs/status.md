@@ -91,10 +91,10 @@ the owner consents to a point. See [decision-engine.md](decision-engine.md).
 - **The editable dashboard is closed** (CW-34): Home is editable, kept per project, with Documents
   and Flows widgets, and checked against its reference screens in both themes, desktop and phone;
   see [dashboard.md](dashboard.md).
-- **What Night Shift left for later**: the cron sentence is said in the UI language since the
-  follow-up pass ([schedule-words.md](schedule-words.md)), and three of the segmented bars became
-  `ProgressBar variant="segments"`. Still open: the look-alike progress bars left (CW-35) and the
-  unused `.meter-head` style. See the plan's [Outcome](plans/redesign-night-shift.md#outcome).
+- **What Night Shift left for later** is closed (CW-35): the cron sentence is said in the UI language
+  ([schedule-words.md](schedule-words.md)), the look-alike bars are `ProgressBar` (each remaining bar
+  class is mapped in the [design system](design-system.md)), and the unused meter style is gone. See
+  the plan's [Outcome](plans/redesign-night-shift.md#outcome).
 - **Known limitations** are catalogued in the README ([Known limitations](../README.md#known-limitations)),
   and what was considered and refused is under [Decided against, for now](../ROADMAP.md#decided-against-for-now).
   Neither is a backlog: they are decisions, with the reasons attached.
