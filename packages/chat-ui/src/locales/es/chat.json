@@ -46,10 +46,12 @@
       "files_other": "{{count}} archivos",
       "hint_one": "1 mensaje espera al turno en curso",
       "hint_other": "{{count}} mensajes esperan al turno en curso",
+      "held_one": "1 mensaje espera a que {{agent}} vuelva a arrancar",
+      "held_other": "{{count}} mensajes esperan a que {{agent}} vuelva a arrancar",
       "sendNow": "Enviar ahora",
       "sending": "Acabando el turno…",
       "sendNowHint": "Acaba el turno en el que está {{agent}}, para que lea lo que espera",
-      "undelivered": "No se ha entregado: el turno ha acabado antes de que el chat lo leyera",
+      "undelivered": "No se ha entregado: {{agent}} se ha detenido antes de leerlo",
       "restore": "Devolverlo al cuadro"
     },
     "stopHint": "Mata el proceso en el que corre el chat. Lo enviado y aún no leído se pierde con él",

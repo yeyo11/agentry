@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-08T12:00:00Z
-updated_at: 2026-10-08T12:00:00Z
+updated_at: 2026-10-08T18:00:00Z
 tags:
     - report
     - audit
@@ -62,6 +62,41 @@ its own queue to the transcript as `queue-operation` lines.
 - **On an interrupt, all queued messages become one prompt.** Session `f7ddba36…`, lines 884 to 890:
   two messages were enqueued at 17:07:44 and 17:08:02. The interrupt came at 17:08:09. There are two
   `dequeue` lines, then **one** `user` entry whose content is both texts joined by `\n`.
+
+## Confirmed on the CLI
+
+Run by hand on 2026-10-08 against the real CLI (2.1.288), `--model haiku`, in a throwaway directory
+under `/tmp`, with `-p --input-format stream-json --output-format stream-json --verbose`, each stdin
+line carrying a `uuid` of our own. Five short sessions, each read back from stdout and from the
+transcript the CLI wrote.
+
+- **The stream-json `uuid` comes back.** The CLI keeps the id a stdin line carries as the message's
+  own: the `user` line of a message read as a turn has that `uuid`; a message read mid-turn is the
+  `attachment/queued_command` line with `source_uuid` set to it, and its `queue-operation remove` line
+  carries it as `commandUuid`. When an interrupt merges two queued messages into one prompt, the
+  merged `user` line takes the **last** message's id.
+- **With `--replay-user-messages` the CLI reads each message back the moment it takes it**, as a
+  `user` line with `isReplay: true` and the id it was sent with: at the start of the turn it starts,
+  or, for a message absorbed mid-turn, right after the tool result it was absorbed at. A merged
+  prompt reads back every message in it (the first with its own text, the last with the merged
+  text). Slash commands read back too (as `<command-name>…` text), so nothing that is taken goes
+  unreported.
+- **Without `--replay-user-messages` an absorbed message is not reported as a `user` line on
+  stdout.** This CLI also writes `command_lifecycle` lines (`queued`, `started`, `completed`,
+  `cancelled`, by `command_uuid`) with or without the flag, but they are not in `--help`, so the fix
+  does not depend on them.
+- **When stdin closes, the CLI keeps its queue.** A message written just before the end of input is
+  still read, as a mid-turn absorption or as its own turn after the running one, and the process
+  exits only once it has answered it. So only the RPC drivers (Codex, ACP) can lose a turn to an
+  early end of input (S-7); for Claude, what dies with the process is what was still queued when the
+  process was stopped or crashed (S-2).
+- The interrupt control response lists what is still queued, by id (`still_queued`), and the CLI
+  reads that queue as its next turn at once.
+
+The design kept its shape: the server sends every message under an id of its own, runs the CLI with
+`--replay-user-messages`, and treats a read-back as the delivery. It does not read the transcript's
+`queue-operation` lines to follow deliveries: the read-back says the same thing on the stream, as it
+happens. [[chat-delivery.md]] describes the result.
 
 ## Findings
 

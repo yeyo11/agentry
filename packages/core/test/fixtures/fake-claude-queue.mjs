@@ -16,7 +16,14 @@
 //   FAKE_QUEUE_LOG_IDS=1    also logs { op: 'stdin', uuid } for every user line, with the `uuid` the
 //                           line carried (null when it had none): how a test sees whether the wrapper
 //                           gave the CLI an id it could match the message by
+//   FAKE_CLOSE_GAP_MS=<ms>  on its way out, leaves a child holding its stdout open that long: the
+//                           process has exited and its pipes have not closed yet
+//
+// With `--replay-user-messages` it reads each message back as the CLI does (checked on CLI 2.1.288,
+// docs/reports/chat-audit/server.md): a `user` line with `isReplay: true` and the `uuid` it was sent
+// with, the moment a turn takes it. A merged prompt reads back every message in it.
 import { appendFileSync, existsSync } from 'node:fs';
+import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline';
 
@@ -43,10 +50,12 @@ const log = (entry) => {
 /** The turn running now: how to end it early */
 let running = null;
 const queue = [];
+const replays = args.includes('--replay-user-messages');
 let inputClosed = false;
 
-function startTurn(prompt) {
+function startTurn(prompt, ids = []) {
   log({ op: 'turn', prompt });
+  if (replays) for (const uuid of ids) out({ type: 'user', isReplay: true, uuid, session_id: sessionId, message: { role: 'user', content: prompt } });
   out({ type: 'system', subtype: 'init', session_id: sessionId, cwd: process.cwd(), model: 'fake', permissionMode: 'default', tools: [] });
   const hold = /^(HOLD|SILENT) (\S+)/m.exec(prompt);
   let timer = null;
@@ -73,15 +82,20 @@ function startTurn(prompt) {
 /** What the CLI does once a turn is over: everything queued is read as the next prompt */
 function next() {
   if (queue.length > 0) {
-    const prompt = queue.splice(0).join('\n');
-    setImmediate(() => startTurn(prompt));
+    const taken = queue.splice(0);
+    const prompt = taken.map((m) => m.text).join('\n');
+    setImmediate(() => startTurn(prompt, taken.flatMap((m) => (m.uuid ? [m.uuid] : []))));
     return;
   }
   if (inputClosed) leave();
 }
 
 function leave() {
-  setTimeout(() => process.exit(0), Number(process.env.FAKE_LINGER_MS ?? 0));
+  setTimeout(() => {
+    const gap = Number(process.env.FAKE_CLOSE_GAP_MS ?? 0);
+    if (gap > 0) spawn('sleep', [String(gap / 1000)], { stdio: ['ignore', 'inherit', 'ignore'], detached: true }).unref();
+    process.exit(0);
+  }, Number(process.env.FAKE_LINGER_MS ?? 0));
 }
 
 const lines = createInterface({ input: process.stdin });
@@ -92,10 +106,11 @@ lines.on('line', (line) => {
     const content = msg.message?.content;
     const text = typeof content === 'string' ? content : content.map((b) => b.text ?? '').join('\n');
     if (process.env.FAKE_QUEUE_LOG_IDS === '1') log({ op: 'stdin', text, uuid: typeof msg.uuid === 'string' ? msg.uuid : null });
+    const uuid = typeof msg.uuid === 'string' ? msg.uuid : null;
     if (running) {
       log({ op: 'enqueue', text });
-      queue.push(text);
-    } else startTurn(text);
+      queue.push({ text, uuid });
+    } else startTurn(text, uuid ? [uuid] : []);
     return;
   }
   if (msg.type === 'control_request') {

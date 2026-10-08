@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-08T14:00:00Z
-updated_at: 2026-10-08T14:00:00Z
+updated_at: 2026-10-08T18:00:00Z
 tags:
     - report
     - chat
@@ -228,6 +228,41 @@ Acceptance criteria:
   needs a fake ACP agent that ignores `session/cancel`; S-11 needs a fake with a controlled gap
   between exit and close.
 
+## Fixed
+
+Every finding was fixed on branch `audit/chat-messages` (CW-37), by the four work items of the fix
+plan. The design is in [[chat-delivery.md]]; what the CLI was confirmed to do is in [[server.md]],
+"Confirmed on the CLI". Every todo test lost its mark and passes.
+
+| Id | Fixed in | Proved by |
+|---|---|---|
+| C-1 / S-4 | `3011f4ec8` (item 1) | core `S-4`, web `C-1`, `packages/core/test/chat-absorbed.test.ts` (page, export, search, handoff), e2e A |
+| S-6 | `3011f4ec8` (item 1) | core `S-6` |
+| S-1 | `2939b8a65` (item 2) | core `S-1` ×2 |
+| S-2 | `2939b8a65` (item 2) | core `S-2` |
+| S-3 | `2939b8a65` (item 2) | core `S-3` ×2, `chat-delivery.test.ts` (held, answered so) |
+| S-5 | `2939b8a65` (item 2), `112e6b79c` (item 3) | core `S-5`, `chat-delivery.test.ts` (one delivered per id), web `S-5` |
+| S-7 | `2939b8a65` (item 2) | core `S-7` |
+| C-8 | `2939b8a65` (server half), `112e6b79c` (client half) | core `C-8`, e2e F |
+| C-2 | `2939b8a65`, `112e6b79c` | `chat-delivery.test.ts` ("Send now" refused once read), e2e B1; B2 keeps working |
+| C-3 | `112e6b79c` (item 3) | e2e C and C2 (Restore keeps the files) |
+| C-6 | `112e6b79c` (item 3) | web `C-6` |
+| C-7 | `112e6b79c` (item 3) | web `C-7` ×2 |
+| C-9, C-10, C-11 | `112e6b79c` (item 3): cards match by id | `apps/web/test/queued-cards.test.ts` |
+| C-12 | `112e6b79c` (item 3): no clock, lost only on `undelivered` | `queued-cards.test.ts` |
+| C-13 | `2939b8a65` (`chat.pending`), `112e6b79c` (cards rebuilt) | `queued-cards.test.ts`, e2e G |
+| C-4 (refuted) | `112e6b79c`: cards are kept by chat | e2e D |
+| C-5 | `112e6b79c` (item 4) | e2e E |
+| C-14 | `2939b8a65` (server dedupes by id), `112e6b79c` (the page reuses the id on a retry) | `chat-delivery.test.ts` (an id sent twice is written once), API test (a bad id is a 400) |
+| S-8 | `2939b8a65` | `chat-delivery.test.ts` `S-8` (fake ACP agent that ignores `session/cancel`) |
+| S-9 | `2939b8a65` | `chat-delivery.test.ts` `S-9` |
+| S-10 | `2939b8a65` | `chat-delivery.test.ts` `S-10` |
+| S-11 | `2939b8a65` | `chat-delivery.test.ts` `S-11` (fake with a gap between exit and close) |
+| S-12 | `2939b8a65` | `chat-delivery.test.ts` `S-12` |
+| S-13 | `2939b8a65` | `chat-delivery.test.ts` `S-13` |
+
+The server's minor fixes (S-8 to S-13) share code with work item 2 and went in with its commit.
+
 ## Coverage and limits
 
 What was checked and found sound is listed in each report: composer failure handling, double
@@ -238,6 +273,6 @@ on the CLI itself:
 - what the CLI does with its queue when stdin closes;
 - whether it reports an absorbed message on stdout without `--replay-user-messages`.
 
-Work item 2 should confirm both against a real CLI by hand before it is built.
+Work item 2 confirmed both against the real CLI by hand before it was built: see "Confirmed on the CLI" in [[server.md]].
 
-Related: [[client.md]], [[server.md]], [[repro.md]], [[providers.md]]
+Related: [[client.md]], [[server.md]], [[repro.md]], [[providers.md]], [[chat-delivery.md]]

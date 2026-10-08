@@ -22,7 +22,7 @@ const entry = (uuid: string, role: 'user' | 'assistant', text: string): Transcri
 
 const detail = (entries: TranscriptEntry[]): ChatDetail => ({ chat, from: 0, total: entries.length, entries });
 
-test('S-5: two queued messages the CLI read as one prompt are shown once, not twice', { todo: 'S-5' }, () => {
+test('S-5: two queued messages the CLI read as one prompt are shown once, not twice', () => {
   const at = Date.now();
   // Turn 1 runs; the person sends two messages, which the wrapper streams under uuids of its own
   let page = detail([entry('u1', 'user', 'run the tests'), entry('a1', 'assistant', 'Running them.')]);

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:00:00Z
-updated_at: 2026-10-06T12:00:00Z
+updated_at: 2026-10-08T18:00:00Z
 tags:
     - providers
     - detection
@@ -47,6 +47,21 @@ and `glab` ([code-hosts.md](code-hosts.md)), and the remote-access tunnel's `tai
 the person's own Tailscale session: no LocalAPI socket, no tsnet, no sign-in of its own. They are
 not providers: they run no chat, and nothing here (detection, the handshake, the policy judge)
 applies to them.
+
+## How a message reaches the agent
+
+Every message Agentry sends has an id of its own, and each driver says when the agent took it
+(the `delivered` driver event), so a page tracks messages by id ([chat-delivery.md](chat-delivery.md)).
+Each driver uses its protocol's own means:
+
+- **Claude Code**: the id goes as the stream-json `uuid` of the stdin line, and the CLI runs with
+  `--replay-user-messages`, a flag in `claude --help`, which reads each message back under that id
+  the moment the CLI takes it. The CLI keeps the id in its transcript (the `user` line, or the
+  `source_uuid` of a `queued_command` attachment for a message read mid-turn). Both were confirmed
+  on CLI 2.1.288 ([reports/chat-audit/server.md](reports/chat-audit/server.md)).
+- **Codex** and the **ACP** agents: the driver queues turns itself and reports a message taken when
+  it starts its turn (`turn/start`, `session/prompt`). While it still holds a turn, the chat's input
+  is not ended (`holdsTurns`).
 
 ## What a provider is
 

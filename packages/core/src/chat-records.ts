@@ -1,4 +1,4 @@
-import type { AgentryAssistantMarker, ChatContinuation, ChatFork, ChatOrigin, ChatToolConfig, Execution, PermissionMode } from '@agentry/shared';
+import type { AgentryAssistantMarker, ChatContinuation, ChatFork, ChatOrigin, ChatPendingMessage, ChatToolConfig, Execution, PermissionMode } from '@agentry/shared';
 import { executionOutcome, INTERRUPTED_BY_RESTART } from './chat-model.ts';
 import { emptyTokenUsage } from './usage.ts';
 
@@ -41,6 +41,8 @@ export interface ChatRecord {
   tools?: ChatToolConfig | null;
   /** Set on a chat of the Agentry assistant: every process of it, after a restart too, is confined again */
   agentryAssistant?: AgentryAssistantMarker | null;
+  /** Messages the agent had not taken when this was written, and those lost before: a restart loses them, and says so */
+  pending?: ChatPendingMessage[];
   createdAt: string;
   updatedAt: string;
 }

@@ -60,6 +60,13 @@ what CLI 2.1 writes there: a `user` line per prompt a turn starts with, the `ass
 `attachment` line of type `queued_command` and no `user` line, as the real CLI records it
 (docs/reports/chat-audit/repro.md).
 
+**A message's id.** The `uuid` a stdin `user` line carries is the message's: its `user` line in the
+transcript has it, and a message read mid-turn carries it as the attachment's `source_uuid` (and the
+`remove` line's `commandUuid`). With `--replay-user-messages`, which the wrapper always passes, each
+message is read back as `{"type":"user","isReplay":true,"uuid":…}` the moment a turn takes it: when
+its turn starts, or right after the tool result it was absorbed at. That is how CLI 2.1.288 behaves
+(docs/reports/chat-audit/server.md, "Confirmed on the CLI"). The log's `stdin` event carries the `uuid`.
+
 **A user message** (`{"type":"user","message":{"content": string | blocks}}`) starts a turn when none
 is running. When `AGENTRY_FAKE_CLI_SCRIPTS` has a key the text contains, the script under that key is
 read instead, so a page shows the prompt a person would have written (a worker's prompt is its task

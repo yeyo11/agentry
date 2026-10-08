@@ -21,7 +21,7 @@ const ROOT_TYPES = [
   'Attachment',
   'AgentryEvent', 'StreamHelloEvent', 'StreamResyncEvent',
   // Agentry's own model: chats, executions, projects
-  'Chat', 'ChatSummary', 'ChatDetail', 'ChatBackgroundTaskEntry', 'ChatSubagentEntry', 'ChatWorkflowEntry', 'NewChatRequest', 'ResumeChatRequest', 'ForkChatRequest', 'ChatMessageRequest', 'ChatSettingsUpdate',
+  'Chat', 'ChatSummary', 'ChatDetail', 'ChatBackgroundTaskEntry', 'ChatSubagentEntry', 'ChatWorkflowEntry', 'NewChatRequest', 'ResumeChatRequest', 'ForkChatRequest', 'ChatMessageRequest', 'ChatMessageResponse', 'ChatInterruptRequest', 'ChatSettingsUpdate',
   'UsageReport',
   'TaskHintRequest', 'Project', 'ProjectCandidate', 'ImportProjectRequest', 'UpdateProjectRequest',
   // What a chat or a task changed on disk

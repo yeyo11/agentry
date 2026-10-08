@@ -53,7 +53,8 @@
     ],
     "backgroundTasks": [],
     "subagents": [],
-    "workflows": []
+    "workflows": [],
+    "pending": []
   },
   "events": [
     {

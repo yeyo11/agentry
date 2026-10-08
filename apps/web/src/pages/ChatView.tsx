@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowDown, GitFork, Hourglass, Lock, MessageSquare, TriangleAlert, Undo2, X } from 'lucide-react';
-import type { Chat, EditStep } from '@agentry/shared';
+import type { Chat, ChatPendingAttachment, EditStep } from '@agentry/shared';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -84,9 +84,9 @@ export function ChatView() {
   const connected = useStreamSnapshot(stream, (snapshot) => snapshot.connected);
   const writing = useStreamSnapshot(stream, (snapshot) => snapshot.partial?.block === 'text');
   const { follow, setFollow, jumpToLatest, hold } = useStickToBottom(scroller, Boolean(chat));
-  const { queued, add: queueMessage, drop: dropQueued, pending: isPending } = useQueuedMessages(chat, transcript.items);
-  // Words handed back to the composer: a message the chat ended without ever reading
-  const [restore, setRestore] = useState<{ text: string; at: number } | null>(null);
+  const { queued, add: queueMessage, drop: dropQueued, pending: isPending } = useQueuedMessages(chat, transcript.items, stream, transcript.query.dataUpdatedAt);
+  // Words and files handed back to the composer: a message the agent never read
+  const [restore, setRestore] = useState<{ text: string; attachments: ChatPendingAttachment[]; at: number } | null>(null);
   // A message still waiting for the turn is a card over the box, so it is not also a row here
   const pendingless = useMemo(() => (queued.length === 0 ? transcript.items : transcript.items.filter((entry) => !isPending(entry))), [transcript.items, queued.length, isPending]);
   // A chat that continues another starts with the handoff the move sent: a collapsed card of its own, not a message
@@ -163,6 +163,13 @@ export function ChatView() {
     mutationFn: () => api.interruptChat(id),
     onSuccess: invalidate,
   });
+  // "Send now" names the message it is for: once the agent has read it the server refuses (409) and
+  // interrupts nothing, which is no error to show, only a card about to clear
+  const { mutate: sendNow, isPending: sendingNow, error: sendNowError } = useMutation({
+    mutationFn: (messageId: string) => api.interruptChat(id, { messageId }),
+    onSettled: invalidate,
+  });
+  const sendNowFailed = sendNowError instanceof ApiRequestError && sendNowError.status === 409 ? null : sendNowError;
   const remove = useDeleteChat(() => navigate('/chats'));
   // Read when pressed, not when the header's actions are built: both change on every render
   const toDelete = useRef({ request: remove.requestDelete, chat });
@@ -277,13 +284,16 @@ export function ChatView() {
   const composer: ComposerKind | null = forking ? 'fork' : control.mode === 'interactive' ? 'send' : control.mode === 'resumable' ? 'resume' : null;
   // While the agent writes the answer after its calls, the step above is done, not current
   const stepCurrent = working && !writing;
+  // "Send now" is for the oldest message still in the agent's queue: ending the turn has it read
+  // whatever else waits with it, and one held for the next process is read once that one starts
+  const waiting = queued.find((message) => message.state === 'waiting');
 
   return (
     <AgentScope chat={chat}>
     <div className={`run-layout ${inspector.rail ? 'has-inspector' : ''}`.trim()}>
       <section className="run-main" aria-label={t('view.conversation')}>
         <ChatHeader chat={chat} connected={connected} actions={actions} limitPhase={limit.phase} limitResetsAt={limit.resetsAt} />
-        <ErrorBox error={stopError ?? interruptError} />
+        <ErrorBox error={stopError ?? interruptError ?? sendNowFailed} />
         {control.mode === 'readOnly' && (
           <div className="alert alert-warn chat-banner" role="status">
             <Lock {...ICON} className="alert-icon" />
@@ -393,20 +403,20 @@ export function ChatView() {
           </div>
         )}
         {queued.length > 0 && (
-          <div className={`chat-queued ${queued.every((message) => message.undelivered) ? 'is-lost' : ''}`.trimEnd()} role="status" aria-label={t('view.queued.title')}>
+          <div className={`chat-queued ${queued.every((message) => message.state === 'lost') ? 'is-lost' : ''}`.trimEnd()} role="status" aria-label={t('view.queued.title')}>
             <ul className="chat-queued-list">
               {queued.map((message) => (
-                <li key={message.id} className="chat-queued-item">
-                  {message.undelivered ? <TriangleAlert {...ICON_SM} aria-hidden /> : <Hourglass {...ICON_SM} aria-hidden />}
-                  <span className="chat-queued-text">{message.text || t('view.queued.files', { count: message.files })}</span>
-                  {message.undelivered && message.text && (
+                <li key={message.id} className={`chat-queued-item ${message.state === 'lost' ? 'is-lost' : ''}`.trimEnd()}>
+                  {message.state === 'lost' ? <TriangleAlert {...ICON_SM} aria-hidden /> : <Hourglass {...ICON_SM} aria-hidden />}
+                  <span className="chat-queued-text">{message.text || t('view.queued.files', { count: message.attachments.length })}</span>
+                  {message.state === 'lost' && (
                     <Tooltip content={t('view.queued.restore')}>
                       <button
                         type="button"
                         className="icon-btn"
                         aria-label={t('view.queued.restore')}
                         onClick={() => {
-                          setRestore({ text: message.text, at: Date.now() });
+                          setRestore({ text: message.text, attachments: message.attachments, at: Date.now() });
                           dropQueued(message.id);
                         }}
                       >
@@ -418,11 +428,17 @@ export function ChatView() {
               ))}
             </ul>
             <div className="chat-queued-foot">
-              <span className="small muted">{queued.some((message) => message.undelivered) ? t('view.queued.undelivered') : t('view.queued.hint', { count: queued.length })}</span>
-              {!queued.some((message) => message.undelivered) && (
+              <span className="small muted">
+                {queued.some((message) => message.state === 'lost')
+                  ? t('view.queued.undelivered', { agent })
+                  : waiting
+                    ? t('view.queued.hint', { count: queued.length })
+                    : t('view.queued.held', { count: queued.length, agent })}
+              </span>
+              {waiting && (
                 <Tooltip content={t('view.queued.sendNowHint', { agent })}>
-                  <button type="button" className="btn btn-small" onClick={() => interruptChat()} disabled={interrupting}>
-                    {interrupting ? t('view.queued.sending') : t('view.queued.sendNow')}
+                  <button type="button" className="btn btn-small" onClick={() => sendNow(waiting.id)} disabled={sendingNow}>
+                    {sendingNow ? t('view.queued.sending') : t('view.queued.sendNow')}
                   </button>
                 </Tooltip>
               )}
@@ -444,8 +460,8 @@ export function ChatView() {
             restore={restore}
             onSent={(sent) => {
               setFollow(true);
-              // Only a live chat queues: a resume or a fork starts a process that reads it at once
-              if (composer === 'send' && working) queueMessage(sent.text, sent.files, transcript.items.at(-1)?.uuid ?? '');
+              // The server says whether it waits: a resume or a fork, or a message that starts a turn, does not
+              if (sent.receipt) queueMessage(sent.receipt, sent.text, sent.attachments);
             }}
             interrupt={composer === 'send' ? { run: () => interruptChat(), pending: interrupting } : undefined}
           />

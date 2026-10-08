@@ -76,7 +76,8 @@
         "background": false
       }
     ],
-    "workflows": []
+    "workflows": [],
+    "pending": []
   },
   "events": [
     {

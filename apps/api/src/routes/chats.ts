@@ -3,6 +3,7 @@ import type { Core } from '@agentry/core';
 import { chatToMarkdown, DEFAULT_ORIGINS, exportFilename, parseChangeScope } from '@agentry/core';
 import type {
   CancelCommandRequest,
+  ChatInterruptRequest,
   ChatMessageRequest,
   ChatOrigin,
   ChatSettingsUpdate,
@@ -177,12 +178,16 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
     chats.send(req.params.id, {
       text: req.body?.text ?? '',
       attachments: Array.isArray(req.body?.attachments) ? req.body.attachments : [],
+      // Checked to be a UUID by the service: the CLI takes it as the message's own id
+      ...(req.body?.id !== undefined ? { id: req.body.id } : {}),
     }),
   );
 
   app.post<{ Params: { id: string } }>('/chats/:id/stop', (req) => chats.stop(req.params.id));
 
-  app.post<{ Params: { id: string } }>('/chats/:id/interrupt', (req) => chats.interrupt(req.params.id));
+  app.post<{ Params: { id: string }; Body: ChatInterruptRequest | undefined }>('/chats/:id/interrupt', (req) =>
+    chats.interrupt(req.params.id, req.body?.messageId !== undefined ? { messageId: req.body.messageId } : {}),
+  );
 
   app.post<{ Params: { id: string }; Body: HintRequest }>('/chats/:id/hint', (req) => chats.hint(req.params.id, req.body ?? ({} as HintRequest)));
 

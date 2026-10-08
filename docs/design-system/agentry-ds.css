@@ -2148,3 +2148,12 @@ a.cont-from:hover { color: var(--fg); }
 .flow-row:hover { background: var(--bg-3); }
 .flow-row .flow-what { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 auto; }
 /* ---------- end of Editable Home ---------- */
+
+/* ---------- Queued messages over the composer (docs/chat-delivery.md) ----------
+   .chat-queued is the dashed, faded card of the messages the agent has not read yet, one .chat-queued-item each. A lost
+   one (.is-lost) says so with the warn triangle, and the whole card turns warn when every one is lost. Nothing here moves. */
+.chat-queued { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px dashed var(--line-2); border-radius: var(--r); opacity: 0.75; }
+.chat-queued-item { display: flex; align-items: flex-start; gap: 8px; color: var(--fg-2); font-size: 13px; }
+.chat-queued-item.is-lost > svg, .chat-queued.is-lost .chat-queued-item > svg { color: var(--warn); }
+.chat-queued.is-lost { border-style: solid; border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); opacity: 1; }
+/* ---------- end of Queued messages ---------- */
