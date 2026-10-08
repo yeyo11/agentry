@@ -12,7 +12,7 @@ tags:
 ---
 # The web UI in two workspace packages
 
-Status: **planned** (2026-09-30), not started. It is built on **`feat/web-packages`** (`main` plus
+Status: **landed** in #156. Planned on 2026-09-30. It is built on **`feat/web-packages`** (`main` plus
 phase 1 of [multiple providers](multi-provider.md), at `41c7063b`) and squash-merged once.
 
 On 2026-09-30 the owner decided to take the chat UI out of `apps/web` and into a workspace package

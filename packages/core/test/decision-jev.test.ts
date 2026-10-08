@@ -22,11 +22,11 @@ const good = result({
 });
 const httpError = (status: number): APIError => APIError.fromResponse(status, {}, new Headers());
 
-function provider(systemOne: JevClient['systemOne'], key: string | null = 'sk-test'): { jev: JevProvider; seen: SystemOneRequest<Questions>[] } {
+function provider(systemOne: JevClient['systemOne'], key: string | null = 'sk-test', backoffMs = 5): { jev: JevProvider; seen: SystemOneRequest<Questions>[] } {
   const seen: SystemOneRequest<Questions>[] = [];
   const jev = new JevProvider({
     getKey: () => key,
-    backoffMs: 5,
+    backoffMs,
     createClient: () => ({
       systemOne: (r, o) => {
         seen.push(r);
@@ -94,11 +94,17 @@ test('jev retries once on a 529 and gives up after the second', async () => {
 
 test('jev does not retry when the deadline has no room for it', async () => {
   let calls = 0;
-  const { jev } = provider(async () => {
-    calls++;
-    throw httpError(429);
-  });
-  const out = await jev.ask(request, { deadlineMs: 3, signal: live.signal });
+  // The wait before a retry is longer than the whole deadline, so there is no room for one; the
+  // deadline itself is roomy, so a slow runner still makes the first call before it runs out
+  const { jev } = provider(
+    async () => {
+      calls++;
+      throw httpError(429);
+    },
+    'sk-test',
+    1000,
+  );
+  const out = await jev.ask(request, { deadlineMs: 200, signal: live.signal });
   assert.equal(out.status === 'unavailable' && out.reason, 'rate-limited');
   assert.equal(calls, 1);
 });
