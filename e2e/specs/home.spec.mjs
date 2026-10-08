@@ -46,7 +46,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(`return !!document.querySelector('main [data-widget=now]')`, { label: 'the project dashboard' });
     // Quick start is out of the default: New chat in the header and the phone's FAB start a chat here
     check(
-      (await page.eval(widgetTypes)) === 'kpis,limits,now,pickUp,export,today,schedules,memory,worktrees,resources',
+      (await page.eval(widgetTypes)) === 'kpis,limits,now,pickUp,flows,documents,export,today,schedules,memory,worktrees,resources',
       `the project draws its default layout (${await page.eval(widgetTypes)})`,
     );
 

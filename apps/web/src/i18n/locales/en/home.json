@@ -92,7 +92,8 @@
   },
   "widgets": {
     "kpis": {
-      "title": "Figures"
+      "title": "Figures",
+      "about": "The day in figures: agents working, answers waiting and what today has cost."
     },
     "now": {
       "title": "In progress",
@@ -103,7 +104,8 @@
       "all": "See all",
       "offline": "Agentry is not answering",
       "offlineHint": "The page cannot reach the wrapper. Check that it is running, then try again.",
-      "retry": "Try again"
+      "retry": "Try again",
+      "about": "What is working now and what waits for you first."
     },
     "orchestrations": {
       "title": "Orchestrations",
@@ -124,34 +126,40 @@
       "failed_other": "{{n}} failed",
       "pending_one": "{{n}} pending",
       "pending_other": "{{n}} pending",
-      "stageOf": "stage {{n}} of {{total}}"
+      "stageOf": "stage {{n}} of {{total}}",
+      "about": "The orchestrations running, or the latest, with their progress."
     },
     "limits": {
       "title": "Limits",
-      "none": "No usage limits reported yet."
+      "none": "No usage limits reported yet.",
+      "about": "How much of the 5 h and weekly limits is used."
     },
     "pickUp": {
       "title": "Pick up again",
       "none": "No chat to pick up.",
       "failed": "failed",
-      "interrupted": "interrupted"
+      "interrupted": "interrupted",
+      "about": "The chats to pick up again."
     },
     "today": {
       "title": "Today's usage",
-      "usage": "Details"
+      "usage": "Details",
+      "about": "What the day has cost per model."
     },
     "schedules": {
       "title": "Schedules",
       "all": "All schedules",
       "none": "Nothing scheduled. Start a chat every morning or an orchestration every Monday.",
-      "create": "Create schedule"
+      "create": "Create schedule",
+      "about": "The next scheduled runs."
     },
     "projects": {
       "title": "Projects",
       "all": "All projects",
       "waiting": "{{n}} waiting",
       "never": "no activity",
-      "now": "now"
+      "now": "now",
+      "about": "Each project with what is live in it."
     },
     "quickStart": {
       "title": "Quick start",
@@ -163,26 +171,61 @@
       "mcpDefault": "MCP: CLI default",
       "mcpChosen_one": "MCP: {{count}} server",
       "mcpChosen_other": "MCP: {{count}} servers",
-      "allOptions": "All options"
+      "allOptions": "All options",
+      "about": "Start a chat with a prompt from here."
     },
     "memory": {
       "title": "Memory",
       "edit": "Edit instructions",
       "excerpt": "The project's CLAUDE.md",
       "noInstructions": "This project has no CLAUDE.md yet.",
-      "files": "Memory files"
+      "files": "Memory files",
+      "about": "An excerpt of the project’s instructions and its memory files."
     },
     "worktrees": {
       "title": "Worktrees",
       "all": "All worktrees",
       "none": "No worktrees.",
-      "more": "and {{n}} more"
+      "more": "and {{n}} more",
+      "about": "The project’s worktrees by branch."
     },
     "resources": {
-      "title": "Resources"
+      "title": "Resources",
+      "about": "Agents, skills and commands of the project, counted."
     },
     "export": {
-      "title": "Export"
+      "title": "Export",
+      "about": "Export the project’s chats as Markdown or JSON."
+    },
+    "documents": {
+      "title": "Documents",
+      "all": "See all",
+      "empty": "No documents in this project yet.",
+      "you": "You",
+      "count_one": "{{n}} document",
+      "count_other": "{{n}} documents",
+      "tied_one": "{{n}} tied to a task",
+      "tied_other": "{{n}} tied to tasks",
+      "about": "The documents modified most recently."
+    },
+    "flows": {
+      "title": "Flow",
+      "on": "on",
+      "off": "off",
+      "open": "See the flow",
+      "quiet": "The flow has nothing running or waiting.",
+      "emptyOff": "The flow is off. Switch it on in the team to see its runs here.",
+      "gone": "A deleted task",
+      "returned": "sent back",
+      "failed": "failed",
+      "waitingIn_one": "{{n}} card waiting in {{column}}",
+      "waitingIn_other": "{{n}} cards waiting in {{column}}",
+      "waitsForYou": "waits for you",
+      "atOnce_one": "{{n}} run at a time",
+      "atOnce_other": "{{n}} runs at a time",
+      "queued_one": "{{n}} queued",
+      "queued_other": "{{n}} queued",
+      "about": "What the flow runs now, what waits for you and what came back."
     }
   },
   "hero": {
@@ -314,6 +357,56 @@
       "journal_one": "Journal, newest entry",
       "journal_other": "Journal, newest {{n}} entries",
       "note": "Every chat of the team gets it when it starts, together with its role's file."
+    }
+  },
+  "edit": {
+    "enter": "Edit Home",
+    "barLabel": "Edit Home",
+    "title": "Editing the Home of {{name}}",
+    "titleAll": "Editing the Home of All projects",
+    "add": "Add widget",
+    "addShort": "Add",
+    "addNamed": "Add {{title}}",
+    "reset": "Reset",
+    "done": "Done",
+    "saveFailed": "Could not save the Home",
+    "resetDone": "Home reset",
+    "undo": "Undo",
+    "handle": "Move {{title}}",
+    "remove": "Remove {{title}}",
+    "sizes": "Size of {{title}}",
+    "size": {
+      "s": "S",
+      "m": "M",
+      "l": "L",
+      "full": "All"
+    },
+    "sizeName": {
+      "s": "Small",
+      "m": "Medium",
+      "l": "Large",
+      "full": "Full width"
+    },
+    "up": "Move {{title}} up",
+    "down": "Move {{title}} down",
+    "isFirst": "{{title}} is already the first of its group",
+    "isLast": "{{title}} is already the last of its group",
+    "listLabel": "Widgets of the Home",
+    "phoneNote": "On a phone every widget stacks in one column, so there is no size to choose.",
+    "pickerTitle": "Add a widget",
+    "pickerHint": "Each widget appears once. It is added at the end of its place on the page.",
+    "new": "new",
+    "have": "Already on your Home",
+    "allAdded": "Every widget is already on your Home.",
+    "close": "Close",
+    "announce": {
+      "lifted": "{{title}} lifted, position {{n}} of {{count}}. Use the arrow keys to move it, Space to drop it and Escape to cancel.",
+      "moved": "{{title}}, position {{n}} of {{count}}",
+      "dropped": "{{title}} dropped at position {{n}} of {{count}}",
+      "cancelled": "Move of {{title}} cancelled",
+      "added": "{{title}} added",
+      "removed": "{{title}} removed",
+      "resized": "{{title}}, size {{size}}"
     }
   }
 }

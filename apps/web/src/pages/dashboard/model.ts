@@ -5,6 +5,9 @@
  */
 import type {
   ChatSummary,
+  DocumentNode,
+  FlowRun,
+  FlowWaitingColumn,
   Orchestration,
   OrchestrationTaskState,
   OrchestrationTaskSummary,
@@ -14,6 +17,7 @@ import type {
   Schedule,
 } from '@agentry/shared';
 import { CLAUDE_CODE_ID } from '../../lib/provider-state';
+import { filesOf } from '../documents/model';
 import type { ProgressCounts, ProgressStatus, StepState } from '@agentry/ui/lib/progress';
 
 /** What a chat stopped for, described so the component words it in the active language. */
@@ -224,4 +228,46 @@ export function limitSummary(overview: Pick<Overview, 'limits'> | undefined): Li
     return found ? { pct: clampPct(found.utilization * 100), resetsAt: found.resetsAt ? found.resetsAt * 1000 : null } : null;
   };
   return { fiveHour: find(FIVE_HOUR), weekly: find(WEEKLY) };
+}
+
+/** The Markdown files most recently modified, newest first; a file with no known time goes last. */
+export function recentDocuments(tree: readonly DocumentNode[], limit: number): DocumentNode[] {
+  return filesOf(tree)
+    .map((node, index) => ({ node, index, at: node.updatedAt ? Date.parse(node.updatedAt) : Number.NaN }))
+    .sort((a, b) => (Number.isNaN(b.at) ? 0 : b.at) - (Number.isNaN(a.at) ? 0 : a.at) || a.index - b.index)
+    .slice(0, Math.max(0, limit))
+    .map((entry) => entry.node);
+}
+
+/** The folder a document sits in, relative to the project; empty for a file at the root. */
+export const documentFolder = (path: string): string => path.split('/').slice(0, -1).join('/');
+
+/** One line of the Flow widget: what runs, what queues, what waits for a person, what just ended. */
+export type FlowRow =
+  | { kind: 'running'; run: FlowRun }
+  | { kind: 'queued'; run: FlowRun }
+  | { kind: 'waiting'; column: FlowWaitingColumn }
+  | { kind: 'ended'; run: FlowRun };
+
+/** Ended runs that still say something: one sent back or failed matters, one that passed is in the item's history. */
+const NOTEWORTHY: ReadonlySet<string> = new Set(['rejected', 'failed']);
+
+/**
+ * The rows of the Flow widget, in the order a person acts on them: the runs going now, the ones
+ * queued, the columns with cards waiting, and the latest runs that were sent back or failed. At most
+ * `limit` rows, so older runs never push out what is live or waiting.
+ */
+export function flowRows(
+  flow: { running: readonly FlowRun[]; queued: readonly FlowRun[] } | undefined,
+  waiting: { columns: readonly FlowWaitingColumn[] } | undefined,
+  recent: readonly FlowRun[],
+  limit: number,
+): FlowRow[] {
+  const rows: FlowRow[] = [
+    ...(flow?.running ?? []).map((run): FlowRow => ({ kind: 'running', run })),
+    ...(flow?.queued ?? []).map((run): FlowRow => ({ kind: 'queued', run })),
+    ...(waiting?.columns ?? []).map((column): FlowRow => ({ kind: 'waiting', column })),
+    ...recent.filter((run) => run.state === 'ended' && run.outcome !== null && NOTEWORTHY.has(run.outcome)).map((run): FlowRow => ({ kind: 'ended', run })),
+  ];
+  return rows.slice(0, Math.max(0, limit));
 }
