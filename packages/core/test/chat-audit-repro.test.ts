@@ -70,3 +70,51 @@ test('S-5: the id the page knows a queued message by reaches the CLI, so a merge
     rmSync(join(config.dataDir, '..'), { recursive: true, force: true });
   }
 });
+
+/** The Claude driver, with the CLI session's other holders set by the test: how a respawn gets refused. */
+class HeldSessionDriver extends ClaudeCodeDriver {
+  holders: number[] = [];
+  override sessionHolders(): number[] {
+    return this.holders;
+  }
+}
+
+test('C-8: a message held for a replacement process that cannot start is reported as not delivered', { todo: 'C-8' }, async () => {
+  const config = tempConfig();
+  const scratch = mkdtempSync(join(tmpdir(), 'agentry-repro-'));
+  const queueLog = join(scratch, 'queue.jsonl');
+  const saved = { log: process.env.FAKE_QUEUE_LOG, linger: process.env.FAKE_LINGER_MS };
+  process.env.FAKE_QUEUE_LOG = queueLog;
+  process.env.FAKE_LINGER_MS = '1500';
+  const db = new Db(config);
+  const driver = new HeldSessionDriver(FAKE_QUEUE);
+  const chats = new ChatManager(config, db, [driver]);
+  const ops = (): Op[] => (existsSync(queueLog) ? readFileSync(queueLog, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l) as Op) : []);
+  try {
+    // keepAlive false, as flow runs, workers and decisions have: the result closes stdin and the CLI
+    // lingers on its way out, so a message sent now is held for the process that replaces it
+    const chat = chats.start({ prompt: 'first', keepAlive: false });
+    await until(() => ops().some((o) => o.op === 'eof'), 'stdin to close');
+    chats.send(chat.id, 'held for the next process');
+    // The replacement is refused: here the session is held by a process the chat does not track,
+    // one of the refusals `spawnProcess` throws (chats.ts:958-965)
+    driver.holders = [424242];
+    await until(() => !chats.get(chat.id)?.pid, 'the old process to exit');
+    await until(() => chats.get(chat.id)?.status === 'failed', 'the chat to fail', 4000).catch(() => undefined);
+    const runtime = chats.get(chat.id);
+    assert.equal(ops().filter((o) => o.op === 'turn').length, 1, 'the CLI never read the held message');
+    const said = chats.events(chat.id).some((e) => JSON.stringify(e).includes('held for the next process'));
+    // Today: the chat fails with the refusal's reason, and nothing anywhere names the message
+    assert.ok(said, `the held message vanished without an event (status ${runtime?.status}, error ${JSON.stringify(runtime?.error)})`);
+  } finally {
+    chats.stopAll();
+    await new Promise((r) => setTimeout(r, 100));
+    db.close();
+    for (const [name, value] of [['FAKE_QUEUE_LOG', saved.log], ['FAKE_LINGER_MS', saved.linger]] as const) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+    rmSync(scratch, { recursive: true, force: true });
+    rmSync(join(config.dataDir, '..'), { recursive: true, force: true });
+  }
+});
