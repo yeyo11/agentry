@@ -1,6 +1,7 @@
 import type { ApiClient, Query } from './client.ts';
 import { ApiError } from './client.ts';
 import type { AgentryMcpToolName } from './names.ts';
+import { boardRows, chatRows, documentRows, flowRunRows, journalRows, orchestrationRows, projectRows, providerRows, teamRows } from './fields.ts';
 import type { Property, Schema } from './schema.ts';
 
 export interface Tool {
@@ -56,7 +57,7 @@ export const TOOLS: readonly Tool[] = [
     name: 'list_projects',
     description: 'Every project Agentry knows, with its key prefix and modules. Use it first to find a project id.',
     inputSchema: schema({}),
-    run: (_args, api) => api.get('/projects'),
+    run: async (_args, api) => projectRows(await api.get('/projects')),
   },
   {
     name: 'get_overview',
@@ -82,7 +83,7 @@ export const TOOLS: readonly Tool[] = [
     run: (args, api) => {
       const query = { ...pick(args, [...BOARD_FILTERS, 'epicId', 'milestoneId', 'q', 'doneLimit']) };
       const id = text(args, 'projectId');
-      return api.get(id ? `/projects/${seg(id)}/work-items/board` : '/work-items/board', query);
+      return api.get(id ? `/projects/${seg(id)}/work-items/board` : '/work-items/board', query).then(boardRows);
     },
   },
   {
@@ -105,7 +106,7 @@ export const TOOLS: readonly Tool[] = [
     run: async (args, api) => {
       const all = await api.get('/orchestrations');
       const limit = num(args, 'limit');
-      return Array.isArray(all) && limit ? all.slice(0, limit) : all;
+      return orchestrationRows(Array.isArray(all) && limit ? all.slice(0, limit) : all);
     },
   },
   {
@@ -119,7 +120,7 @@ export const TOOLS: readonly Tool[] = [
     name: 'get_team',
     description: "A project's team: its agents, their roles and what each is doing. Use it for 'who works on this'.",
     inputSchema: schema({ projectId }, ['projectId']),
-    run: (args, api) => api.get(`/projects/${seg(need(args, 'projectId'))}/team`),
+    run: async (args, api) => teamRows(await api.get(`/projects/${seg(need(args, 'projectId'))}/team`)),
   },
   {
     name: 'list_flow_runs',
@@ -136,19 +137,19 @@ export const TOOLS: readonly Tool[] = [
       },
       ['projectId'],
     ),
-    run: (args, api) => api.get(`/projects/${seg(need(args, 'projectId'))}/flow/runs`, pick(args, ['agent', 'role', 'status', 'itemId', 'before', 'limit'])),
+    run: async (args, api) => flowRunRows(await api.get(`/projects/${seg(need(args, 'projectId'))}/flow/runs`, pick(args, ['agent', 'role', 'status', 'itemId', 'before', 'limit']))),
   },
   {
     name: 'get_journal',
     description: "A project's journal, newest first: what the team and people noted. Use it for 'what happened lately'.",
     inputSchema: schema({ projectId, limit: int('How many entries', 1, PAGE_MAX), before: str('Only entries before this cursor or date') }, ['projectId']),
-    run: (args, api) => api.get(`/projects/${seg(need(args, 'projectId'))}/journal`, pick(args, ['limit', 'before'])),
+    run: async (args, api) => journalRows(await api.get(`/projects/${seg(need(args, 'projectId'))}/journal`, pick(args, ['limit', 'before']))),
   },
   {
     name: 'list_documents',
     description: "The tree of a project's documents. Use it to find the path of a document before read_document.",
     inputSchema: schema({ projectId }, ['projectId']),
-    run: (args, api) => api.get(`/projects/${seg(need(args, 'projectId'))}/documents`),
+    run: async (args, api) => documentRows(await api.get(`/projects/${seg(need(args, 'projectId'))}/documents`)),
   },
   {
     name: 'read_document',
@@ -165,7 +166,7 @@ export const TOOLS: readonly Tool[] = [
       origin: str('Comma separated origins: agentry, external, orchestration, internal'),
       limit: int('How many chats', 1, PAGE_MAX),
     }),
-    run: (args, api) => api.get('/chats', pick(args, ['project', 'state', 'origin', 'limit'])),
+    run: async (args, api) => chatRows(await api.get('/chats', pick(args, ['project', 'state', 'origin', 'limit']))),
   },
   {
     name: 'get_chat',
@@ -197,6 +198,6 @@ export const TOOLS: readonly Tool[] = [
     description: "The agent providers (Claude Code, Codex, Gemini CLI, GitHub Copilot, OpenCode): whether each is ready and why not, its account, and its usage limit per window with the reset. Use it for 'how close am I to the limit' and 'which agents can I use'.",
     inputSchema: schema({}),
     // What the detector last read, never a new detection: refreshing runs every installed CLI
-    run: (_args, api) => api.get('/providers'),
+    run: async (_args, api) => providerRows(await api.get('/providers')),
   },
 ];
