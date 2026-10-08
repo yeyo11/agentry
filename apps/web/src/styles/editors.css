@@ -596,6 +596,15 @@ button.master-item-on:hover {
   background: linear-gradient(var(--border), var(--border)) calc(var(--settings-nav-w) - 1px) 0 / 1px 100% no-repeat;
 }
 
+/*
+ * Tabs differ in height, so the scroller gains and loses its scrollbar as the tab changes. With
+ * classic scrollbars (the desktop app's) that would move the whole centered page by half its width
+ * every time: the nav and the body would dance. The room for it is kept either way.
+ */
+.main:has(.settings-layout) {
+  scrollbar-gutter: stable;
+}
+
 /* The page fills the scroller, so the divider reaches the bottom even under a short tab */
 .page:has(> .settings-layout) {
   min-height: 100%;
