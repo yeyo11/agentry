@@ -223,16 +223,15 @@
   files over 400 lines split
   ([the plan](docs/plans/project-ecosystem.md#orchestration-6-ecosystem-gaps)).
   The whole ecosystem landed on `main` in one pull request, #118, on 2026-09-28.
+- **An editable Home.** Add, remove, reorder and resize widgets, a layout kept per project and one
+  for All projects, and Documents and Flows widgets. Edits save at once and work with taps on a
+  phone. See [docs/dashboard.md](docs/dashboard.md).
 
 ## Next
 
 ### Planned
 
-- **Dashboard: editable layout persisted per project; Documents and Flows widgets.** Home already
-  renders any layout that passes validation, from a registry of widget types, so adding, removing,
-  reordering and resizing widgets, keeping a layout per project, and new widget types are additive.
-  Left out of the redesign on purpose: see
-  [docs/plans/ui-redesign.md](docs/plans/ui-redesign.md#not-in-this-orchestration).
+Nothing is planned right now.
 
 The rest of what is still open was decided against rather than left undone. The plans say why:
 [docs/plans/post-roadmap.md](docs/plans/post-roadmap.md),

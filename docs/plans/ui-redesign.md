@@ -77,9 +77,11 @@ that way, leave it out and say so in your result instead of inventing a surface.
 
 - **Editing the dashboard** (add, remove, reorder, resize widgets) and **persisting a layout per
   project.** This orchestration builds the widget registry and a fixed default layout generated from
-  it, so editing and persistence are a later, additive step (see `dashboard`).
+  it, so editing and persistence are a later, additive step (see `dashboard`). Built afterwards:
+  see [dashboard.md](../dashboard.md).
 - **Documents and Flows widgets.** Same: they are future widget types for the registry. No
-  placeholder or "coming soon" tile is shown for them.
+  placeholder or "coming soon" tile is shown for them. Built afterwards, in
+  [dashboard.md](../dashboard.md).
 - **A new visual identity.** The brand mark, the name, the orange accent and Inter/JetBrains Mono
   stay.
 
@@ -728,8 +730,8 @@ level. This Outcome.
 - The palette's and Settings' `?tab=` links moved to `?view=`; dead CSS (`.nav-count-ping`,
   `.today-limits`).
 - The project's git branch in the dashboard header, which needs a field on `Project`.
-- The editable, persisted dashboard and the Documents and Flows widgets, as planned (see
-  [ROADMAP.md](../../ROADMAP.md#next)).
+- ~~The editable, persisted dashboard and the Documents and Flows widgets~~: built, see
+  [dashboard.md](../dashboard.md).
 
 ## Related
 

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-10-07T18:00:00Z
+updated_at: 2026-10-08T08:30:00Z
 tags:
     - status
     - project-state
@@ -88,10 +88,8 @@ the owner consents to a point. See [decision-engine.md](decision-engine.md).
   plan's [Outcome](plans/project-ecosystem.md#the-ecosystem-as-a-whole) and the Known gaps of
   [work-items.md](work-items.md#known-gaps), [team-and-flow.md](team-and-flow.md#known-gaps) and
   [assistant.md](assistant.md#known-gaps) for what stays open per area.
-- **The editable dashboard.** Home renders any layout that validates, from a registry of widget
-  types, but the layout is not editable or persisted per project, and the Documents and Flows
-  widgets do not exist. Left out of the redesign deliberately — see
-  [the UI redesign plan](plans/ui-redesign.md#not-in-this-orchestration). It is listed under [Next](../ROADMAP.md#next).
+- **The editable dashboard is closed** (CW-34): Home is editable, kept per project, with Documents
+  and Flows widgets; see [dashboard.md](dashboard.md). Only its browser verification is pending.
 - **What Night Shift left for later**: cron descriptions built in English in core (translating them
   needs an API change), four look-alike segmented bar classes to merge, and one unused meter
   style. See the plan's [Outcome](plans/redesign-night-shift.md#outcome).
