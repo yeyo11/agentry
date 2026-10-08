@@ -440,7 +440,9 @@ transpiler.
 | `AGENTRY_PID_FILE` | `/tmp/agentry.pid` in the image | Where the server writes its pid, so the image's healthcheck can end a wedged server |
 | `AGENTRY_HEALTH_RESTART_AFTER` | `3` | Consecutive failed health probes (30 s apart) after which the container restarts itself |
 | `AGENTRY_ALLOWED_HOSTS` | – (loopback only) | Comma-separated host names this wrapper answers to besides loopback, each a name or a `*.domain` pattern standing for that domain's subdomains. A `Host` that matches none of them is refused `421` before the credential is read. Ports and letter case are ignored; `GET /api/health` is exempt. Behind a proxy, name the public host here or everything answers `421`. Its hosts are fixed; more can be added in Settings → Security, without a restart ([docs/layered-settings.md](docs/layered-settings.md)); a running tunnel's exact host is added on its own |
-| `AGENTRY_TUNNEL` | on (off in the image) | Whether Settings → Remote access may serve Agentry on the tailnet through `tailscale serve`: `on`/`1`/`true` or `off`/`0`/`false`, empty meaning the default; anything else stops the server at startup. A container sees neither the host's `tailscale` CLI nor its daemon, which is why it is off there. See [docs/tunnel.md](docs/tunnel.md) |
+| `AGENTRY_TUNNEL` | on | Whether Settings → Remote access may serve Agentry on the tailnet through `tailscale serve`: `on`/`1`/`true` or `off`/`0`/`false`, empty meaning the default; anything else stops the server at startup. In the image, `off` also keeps the entrypoint from starting its own tailscaled. See [docs/tunnel.md](docs/tunnel.md) |
+| `AGENTRY_TAILSCALE_MANAGED` | set by the image's entrypoint | `1` when the tailscaled behind the CLI is Agentry's own (the image's), which the app then signs in and out. Not for setting by hand |
+| `AGENTRY_TAILSCALE_HOSTNAME` | `agentry` | The node's name when the image's Tailscale signs in (`tailscale up --hostname`); a DNS label, or the server stops at startup |
 | `AGENTRY_TUNNEL_PORT` | `8443` | The HTTPS port of Agentry's Serve rule on the tailnet name, kept off 443 so a Serve rule of your own is never touched. Not a port between 1 and 65535 stops the server at startup |
 | `TAILSCALE_BIN` | `tailscale` | The Tailscale CLI the tunnel runs |
 | `AGENTRY_CORS_ORIGIN` | – (CORS off) | Comma-separated origins (or `*`, which echoes the caller) for external browser clients. The event streams obey this list too. The bundled UI never needs it: in dev it uses the Vite `/api` proxy, in production it is same-origin |
@@ -561,10 +563,11 @@ what is and is not protected.
   security contexts, `auth.mode` (`none`, `token`, `oidc`) and `auth.readOnly`. There is no Ingress
   template; bring your own — and if it gives the pod a host name, put that name in
   `AGENTRY_ALLOWED_HOSTS` through the chart's `env`.
-- **The tunnel** (Settings → Remote access) is off in the image and the chart unless you turn it on
-  (`AGENTRY_TUNNEL=on`, or `tunnel.enabled: true`). The image ships no `tailscale` CLI and sees no
-  tailscaled, so it only works with a Tailscale the container can reach, and then it goes around the
-  published port, the proxy and the Ingress.
+- **The tunnel** (Settings → Remote access): the image runs a Tailscale of its own in userspace
+  networking, with its node on the data volume, and you sign it in from the app with a login link or
+  an auth key. Once open it goes around the published port, the proxy and the Ingress; turn it off
+  with `AGENTRY_TUNNEL=off` (or `tunnel.enabled: false`). See
+  [docs/deploy.md](docs/deploy.md#the-tunnel-in-docker).
 - **A pinned Claude Code**: the image installs a fixed version and Settings → Account says when a
   newer one is published, with how to move. The check reads the npm registry on demand and once a
   day.
