@@ -53,12 +53,31 @@ other method; the write tools below go through `send`, the only way to write.
 The names live in `packages/mcp/src/names.ts` (`AGENTRY_MCP_SERVER`, `AGENTRY_MCP_READ_TOOLS`); a test
 keeps the catalogue in `tools.ts` equal to that list, and the allow list is built from it.
 
+## Fields of the list tools
+
+A list tool answers **only the fields a model needs to choose a row, and the id that fetches the rest**
+(`packages/mcp/src/fields.ts`; the format plan is [plans/agent-wire-format.md](plans/agent-wire-format.md)). A
+field that is null or absent is left out. The detail tools (`get_work_item`, `get_orchestration`,
+`get_chat`, `read_document`, `get_overview`, `get_usage`) keep the route's shape.
+
+| Tool | Row |
+|---|---|
+| `list_projects` | `id`, `name`, `key`, `path`, `modules`, `chatCount`, `lastActivity`, `exists` |
+| `get_board` | per column `status`, `count`, `limit`, `overLimit`, `more`; per card `key`, `id`, `type`, `title`, `status`, `priority`, `labels`, `hasDescription`, `waiting`, `assignee` (role or kind), `epic` (key) |
+| `list_orchestrations` | `id`, `name`, `status`, `createdAt`, `endedAt`, `costUsd`, `cwd`, `error`, `tasks` (`total` and a count per status), `verification` (its status) |
+| `get_team` | `projectId`, `enabled`; per member `agent`, `role`, `model`, `responsibility`, `columns`, `queued`, `running` (`run`, `item` key), `lastRun` (`run`, `item`, `outcome`) |
+| `list_flow_runs` | `runs` of `id`, `role`, `agent`, `model`, `step`, `state`, `outcome`, `summary`, `error`, `chatId`, `queuedAt`, `endedAt`, `item` (key); then `total`, `nextCursor` |
+| `get_journal` | `entries` of `id`, `kind`, `text`, `documentPath`, `createdAt`, `item` (key), `author` (role or kind); then `total`, `nextBefore` |
+| `list_documents` | `root`, `exists`, `fileCount`; per node `path`, `type`, `title`, `fileCount`, `children` |
+| `list_chats` | `id`, `title`, `state`, `origin`, `model`, `messageCount`, `updatedAt`, `atLimit`, `project` (name), `projectId`, `orchestration` (id), `costUsd` |
+| `list_providers` | `id`, `label`, `state`, `reason`, `account`, `version`, `limit` (`state`, `window`, `utilization`, `resetsAt`) |
+
 Rules for every tool:
 
 - The input schema is strict (`additionalProperties: false`). An input that fails it is answered as a
   tool error (`isError: true`) and no request is made.
-- The result is one `text` content of compact JSON, capped at `RESULT_MAX_CHARS` (50 000). A cut result
-  ends with `"truncated": true` and a hint to narrow the call.
+- The result is one `text` content of compact JSON, never indented (a test checks every read tool). capped at `RESULT_MAX_CHARS` (50 000). A cut result
+  ends with `"truncated": true` and a hint to narrow the call. TOON was benchmarked on the list tools and saved under 15 %, so no tool uses it ([plans/agent-wire-format.md](plans/agent-wire-format.md)).
 - A 4xx or 5xx is an error result with the status and the route's `error` text; there is no retry. A
   `401` says that the API is guarded and the chat has no token. A network error names the URL tried.
 - Each request times out after `REQUEST_TIMEOUT_MS` (15 s).
