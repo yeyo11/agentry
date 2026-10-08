@@ -581,6 +581,7 @@ Types live in [`packages/shared/src/types.ts`](packages/shared/src/types.ts).
 | POST | `/system/cli-version/check` | Check the npm registry for a newer Claude Code now (also done once a day) |
 | GET | `/system/release` | Agentry in use, the newest release, how this server was installed (`distribution`), as the last check left it (never asks GitHub) |
 | POST | `/system/release/check` | Check GitHub for a newer Agentry release now (also done once a day) |
+| GET | `/system/storage` | In a Docker install, whether the Claude config dir, the data dir and the workspace sit on a persistent volume or would be lost when the container is replaced (`persistent`, `anonymous`, `container`, `temporary`); `atRisk` says whether any would |
 | GET | `/overview` | Everything the dashboard needs in one call |
 
 ### Account credentials

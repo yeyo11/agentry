@@ -49,7 +49,7 @@ const ROOT_TYPES = [
   // Web Push
   'PushKeyInfo', 'RegisterPushSubscriptionRequest', 'PushSubscriptionSummary', 'RemovePushSubscriptionRequest', 'SendTestPushRequest', 'PushSendResult', 'PushPayload',
   // Packaging
-  'CliVersionInfo', 'AgentryReleaseInfo',
+  'CliVersionInfo', 'AgentryReleaseInfo', 'StorageReport',
   // Project ecosystem: modules and templates, work items, milestones and the board
   'ProjectSettings', 'ProjectTemplate', 'WorkItem', 'WorkItemDetail', 'WorkItemComment', 'WorkItemHistoryEntry', 'WorkItemLink', 'WorkItemFilter',
   'CreateWorkItemRequest', 'UpdateWorkItemRequest', 'MoveWorkItemRequest', 'MoveWorkItemResult', 'CheckAcceptanceCriterionRequest',

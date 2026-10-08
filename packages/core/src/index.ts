@@ -8,6 +8,7 @@ import type {
   AgentryReleaseInfo,
   TrackerId,
   CliVersionInfo,
+  StorageReport,
   ProviderLimit,
   ChatProject,
   ChatSummary,
@@ -90,6 +91,7 @@ import type { TranscriptSummary } from './cli-facts.ts';
 import { detectCli, execCli, getAuthStatus } from './cli.ts';
 import { CliVersionWatch } from './cli-version.ts';
 import { ReleaseWatch } from './release-watch.ts';
+import { storageReport } from './storage.ts';
 import { ConfigExplorer } from './config/explorer.ts';
 import { SettingsFiles } from './config/files.ts';
 import { ChangeWatcher } from './change-watcher.ts';
@@ -1411,6 +1413,12 @@ export class Core {
   async checkCliVersion(): Promise<CliVersionInfo> {
     await this.cliVersion.check();
     return this.cliVersionInfo();
+  }
+
+  /** Whether the folders that hold the state would survive replacing the container; see storage.ts */
+  storageInfo(): StorageReport {
+    const { configDir, dataDir, workspaceDir } = this.config;
+    return storageReport(this.release.distribution, { config: configDir, data: dataDir, workspace: workspaceDir });
   }
 
   /** This Agentry against the newest release, as the last check left it: no network here. */

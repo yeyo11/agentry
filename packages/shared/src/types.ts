@@ -55,6 +55,32 @@ export interface AgentryReleaseInfo {
 }
 
 /**
+ * What a folder of the server sits on, read from the mounts the process sees. `persistent` is a
+ * named volume, a bind mount or an orchestrator's claim: it outlives the container. The other three
+ * do not: `anonymous` is a volume Docker made on its own (the image declares `VOLUME`, the command
+ * did not name one), which the next `docker run` replaces with an empty one; `container` is the
+ * container's own layer; `temporary` is memory or an emptyDir. `unknown` is a mount table that could
+ * not be read or told apart.
+ */
+export type StorageKind = 'persistent' | 'anonymous' | 'container' | 'temporary' | 'unknown';
+
+export interface StorageLocation {
+  /** `config` is the Claude config dir (`~/.claude`), `data` the wrapper's state, `workspace` the projects */
+  id: 'config' | 'data' | 'workspace';
+  path: string;
+  kind: StorageKind;
+}
+
+export interface StorageReport {
+  distribution: AgentryDistribution;
+  /** Only a container can lose its folders to a recreate; elsewhere the list is empty */
+  checked: boolean;
+  locations: StorageLocation[];
+  /** At least one folder will not survive replacing the container */
+  atRisk: boolean;
+}
+
+/**
  * `wrapper-*`: configured through the API; `env-*`: passed through the container environment;
  */
 export type TokenSource =

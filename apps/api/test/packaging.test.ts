@@ -47,7 +47,32 @@ test('the Agentry release is read without asking GitHub, and the image says it i
   assert.equal(before.latest, null);
   assert.equal(before.checkedAt, null);
   assert.equal(before.updateAvailable, false);
-  assert.match(dockerfile, /^\s+AGENTRY_DISTRIBUTION=docker$/m);
+  assert.match(dockerfile, /^\s+AGENTRY_DISTRIBUTION=docker( \\)?$/m);
+  await app.close();
+});
+
+test('the image installs the other agents pinned inside their manifests\' ranges, and keeps their homes in /data', async () => {
+  const { PROVIDER_MANIFESTS, satisfiesRange } = await import('@agentry/core');
+  const pins: Record<string, string> = { codex: 'CODEX_VERSION', gemini: 'GEMINI_CLI_VERSION', copilot: 'COPILOT_VERSION', opencode: 'OPENCODE_VERSION' };
+  for (const [id, arg] of Object.entries(pins)) {
+    const pinned = dockerfile.match(new RegExp(`^ARG ${arg}=(\\d+\\.\\d+\\.\\d+)$`, 'm'))?.[1];
+    assert.ok(pinned, `${arg} is pinned`);
+    const range = PROVIDER_MANIFESTS.find((m) => m.id === id)?.versions.range;
+    assert.ok(range, `${id} declares a version range`);
+    assert.equal(satisfiesRange(pinned, range), 'in', `${arg}=${pinned} is inside ${range}`);
+  }
+  // Their sign-ins and sessions must not sit in the container's own layer
+  for (const name of ['CODEX_HOME', 'GEMINI_CLI_HOME', 'COPILOT_HOME', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME']) {
+    assert.match(dockerfile, new RegExp(`^\\s+${name}=/data/provider-homes/`, 'm'), name);
+  }
+});
+
+test('the storage report names the three folders, and says nothing is checked outside Docker', async () => {
+  const { app } = await wrapper();
+  const report = (await app.inject('/api/system/storage')).json();
+  assert.equal(report.checked, false);
+  assert.deepEqual(report.locations, []);
+  assert.equal(report.atRisk, false);
   await app.close();
 });
 

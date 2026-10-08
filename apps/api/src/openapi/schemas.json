@@ -13738,6 +13738,70 @@
     ],
     "description": "Which Claude Code the wrapper runs and whether a newer one exists. The check costs a registry read, so it happens on demand or once a day, never on a page load: `checkedAt` says how old the answer is."
   },
+  "StorageReport": {
+    "type": "object",
+    "properties": {
+      "distribution": {
+        "$ref": "#/components/schemas/AgentryDistribution"
+      },
+      "checked": {
+        "type": "boolean",
+        "description": "Only a container can lose its folders to a recreate; elsewhere the list is empty"
+      },
+      "locations": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/StorageLocation"
+        }
+      },
+      "atRisk": {
+        "type": "boolean",
+        "description": "At least one folder will not survive replacing the container"
+      }
+    },
+    "required": [
+      "distribution",
+      "checked",
+      "locations",
+      "atRisk"
+    ]
+  },
+  "StorageLocation": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "enum": [
+          "config",
+          "data",
+          "workspace"
+        ],
+        "description": "`config` is the Claude config dir (`~/.claude`), `data` the wrapper's state, `workspace` the projects"
+      },
+      "path": {
+        "type": "string"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/StorageKind"
+      }
+    },
+    "required": [
+      "id",
+      "path",
+      "kind"
+    ]
+  },
+  "StorageKind": {
+    "type": "string",
+    "enum": [
+      "persistent",
+      "anonymous",
+      "container",
+      "temporary",
+      "unknown"
+    ],
+    "description": "What a folder of the server sits on, read from the mounts the process sees. `persistent` is a named volume, a bind mount or an orchestrator's claim: it outlives the container. The other three do not: `anonymous` is a volume Docker made on its own (the image declares `VOLUME`, the command did not name one), which the next `docker run` replaces with an empty one; `container` is the container's own layer; `temporary` is memory or an emptyDir. `unknown` is a mount table that could not be read or told apart."
+  },
   "ProjectSettings": {
     "type": "object",
     "properties": {
