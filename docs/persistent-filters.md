@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T12:00:00Z
-updated_at: 2026-09-28T12:00:00Z
+updated_at: 2026-10-08T12:00:00Z
 tags:
     - web
     - lists
@@ -45,6 +45,12 @@ Views of a page are not filters and are not kept: `tab=templates`, `new`, `view`
 - Until the top bar's scope is settled the hook neither restores nor stores, so a remembered
   project's filters are not replaced by All projects' while the projects load.
 - A list with nothing in it at all keeps its toolbar in place but disabled; Reset stays usable.
+- **A reset or a change is never undone by a decision taken before it** (CW-36). The hook decides
+  what to show at render time and applies it to the address and storage in an effect; on a slow
+  main thread a click can land in between. Each decision carries what storage held when it was
+  taken, and the effect drops it when storage holds something else by then, whether it was bringing
+  stored filters back or storing the ones a link carried. A reset or a change also makes the next
+  render read storage again, even when the address did not move.
 
 ## Decisions
 
