@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:00:00Z
-updated_at: 2026-10-08T18:00:00Z
+updated_at: 2026-10-08T21:00:00Z
 tags:
     - providers
     - detection
@@ -334,12 +334,13 @@ in `packages/core/src/providers/acp/` runs the protocol, and what differs per ag
 
 `apps/web/src/components/ProvidersStep.tsx` stands in for the whole app, with no shell, and lists what
 the detector found grouped by state (ready, signed out, needs attention, used before, not installed).
-It is shown when `providersStepSeen` in the app settings is off (the first start), and on every start
+It is shown when `setupSeen` in the app settings is off (the first start; it replaced `providersStepSeen`, which still counts), and on every start
 where no provider is usable, so a wrapper that cannot run a chat says why first. Once seen, it never
 stands in front of Settings (`/settings`), which is where a provider gets fixed; Home and the status
 bar still say nothing is ready. The primary action is
 "Continue with" the first ready provider; "Skip for now" is always there and, like Continue, records
-the step as seen (`PUT /settings/app`, or `AGENTRY_PROVIDERS_STEP_SEEN=on` from the environment).
+the step as seen (`PUT /settings/app`, or `AGENTRY_SETUP_SEEN=on` from the environment; the older
+`AGENTRY_PROVIDERS_STEP_SEEN` still counts). The setup assistant of [setup.md](setup.md) replaces it.
 Skipping while nothing is ready hides it for that page load only. When every provider is missing the
 page is an `Empty` state with the install link for Claude Code and the others as chips. "Check again"
 calls `POST /providers/refresh`, and an install or sign-in made in a terminal arrives through
