@@ -1,4 +1,4 @@
-import type { EditStep } from '@agentry/shared';
+import { entryText, type EditStep, type TranscriptEntry } from '@agentry/shared';
 import { maskSecrets } from './decisions/redact.ts';
 import { pasted, PASTED_NOTE } from './prompt-rules.ts';
 
@@ -22,6 +22,8 @@ export const HANDOFF_SECTIONS = {
 export interface HandoffInput {
   /** The chat's first prompt; for a flow run or a task, the prompt Agentry sent for it */
   prompt: string;
+  /** What the person said after the first prompt, oldest first: a message read mid-turn included */
+  followUps?: readonly string[];
   /** `editStepsFromEntries`, in the order the calls were made */
   steps: readonly Pick<EditStep, 'path' | 'tool' | 'additions' | 'deletions' | 'created' | 'intent'>[];
   commands: readonly { command: string; exitCode: number | null }[];
@@ -45,6 +47,21 @@ export interface Handoff {
   bytes: number;
   /** The headers of the sections the text contains */
   sections: string[];
+}
+
+/** Lines the CLI writes as the person's that the person never typed: an interruption, a command's output, a task's report */
+const NOT_SAID = /^(\[Request interrupted|<local-command-|<task-notification>|<command-name>)/;
+
+/**
+ * What the person said after the first prompt, from the main conversation's entries: their own
+ * messages, a message the agent read mid-turn included, without tool results or the CLI's own lines.
+ */
+export function followUpsOf(entries: readonly TranscriptEntry[]): string[] {
+  const said = entries.filter((entry) => entry.role === 'user' && !entry.isSidechain && entry.blocks.every((b) => b.type !== 'tool_result'));
+  return said
+    .map((entry) => entryText(entry).trim())
+    .filter((text) => text && !NOT_SAID.test(text))
+    .slice(1);
 }
 
 const byteLength = (text: string): number => Buffer.byteLength(text, 'utf8');
@@ -99,6 +116,12 @@ function standsBody(input: HandoffInput): string {
   ].join('\n');
 }
 
+function askedBody(input: HandoffInput): string {
+  const prompt = maskSecrets(input.prompt.trim()) || '(empty)';
+  const later = (input.followUps ?? []).map((text) => line(text, 600)).filter(Boolean);
+  return later.length ? `${prompt}\n\nWhat the person said after that:\n${bullets(later)}` : prompt;
+}
+
 function rulesBody(input: HandoffInput): string {
   const parts: string[] = [];
   if (input.closing?.trim()) parts.push(maskSecrets(input.closing.trim()));
@@ -116,7 +139,7 @@ function rulesBody(input: HandoffInput): string {
  */
 export function buildHandoff(input: HandoffInput, id?: string): Handoff {
   const parts: [string, string][] = [
-    [HANDOFF_SECTIONS.asked, maskSecrets(input.prompt.trim()) || '(empty)'],
+    [HANDOFF_SECTIONS.asked, askedBody(input)],
     [HANDOFF_SECTIONS.done, doneBody(input)],
     [HANDOFF_SECTIONS.stands, standsBody(input)],
     [HANDOFF_SECTIONS.left, bullets(input.openItems.map((i) => line(i, 600)))],

@@ -57,7 +57,7 @@ import {
   type UsageSeries,
 } from '@agentry/shared';
 import { randomUUID } from 'node:crypto';
-import { buildHandoff } from './handoff.ts';
+import { buildHandoff, followUpsOf } from './handoff.ts';
 import { editStepsFromEntries, editStepsOf } from './edit-steps.ts';
 import { gitRaw } from './git.ts';
 import type { Db } from './db.ts';
@@ -997,6 +997,7 @@ export class ChatService {
     };
     return buildHandoff({
       prompt: work?.prompt ?? runtime.prompt,
+      followUps: followUpsOf(entries),
       steps: steps.map((s): Pick<EditStep, 'path' | 'tool' | 'additions' | 'deletions' | 'created' | 'intent'> => ({ path: s.path, tool: s.tool, additions: s.additions, deletions: s.deletions, created: s.created, intent: s.intent })),
       commands,
       checklist,

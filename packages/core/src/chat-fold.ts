@@ -13,7 +13,7 @@ const entrySeq = new WeakMap<LiveChat, number>();
  * Records what a non-Claude chat streamed as rows, the transcript of a provider that keeps none
  * Agentry can read. Claude's own JSONL is its transcript, so it is not copied.
  */
-function recordEntry(host: ChatHost, chat: LiveChat, entry: Extract<DriverEvent, { kind: 'message' }>['entry']): void {
+export function recordEntry(host: ChatHost, chat: LiveChat, entry: Extract<DriverEvent, { kind: 'message' }>['entry']): void {
   if (chat.driver.manifest.id === LEGACY_PROVIDER) return;
   try {
     const seq = entrySeq.get(chat) ?? (host.db.chatEntries(chat.id).at(-1)?.seq ?? -1) + 1;

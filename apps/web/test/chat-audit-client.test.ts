@@ -40,7 +40,7 @@ function sentMidTurn(at: number) {
   return { page, since, fresh };
 }
 
-test('C-1: the line the CLI writes for a message it read mid-turn is an entry of the transcript', { todo: 'C-1' }, () => {
+test('C-1: the line the CLI writes for a message it read mid-turn is an entry of the transcript', () => {
   // Shape copied from a real transcript (CLI 2.1.286): the message has no `user` line at all
   const line = {
     type: 'attachment',

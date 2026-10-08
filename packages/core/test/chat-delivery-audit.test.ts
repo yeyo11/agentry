@@ -175,7 +175,7 @@ test('S-3: stopping a chat that holds a message says the message was not deliver
 
 // ---------- S-4: a message the CLI absorbed mid-turn is not in the transcript ----------
 
-test('S-4: a message the CLI absorbed into the running turn is in the transcript Agentry serves', { todo: 'S-4' }, async () => {
+test('S-4: a message the CLI absorbed into the running turn is in the transcript Agentry serves', async () => {
   const config = { ...tempConfig(), claudeBin: FAKE_QUEUE };
   const core = new Core(config);
   try {
@@ -242,7 +242,7 @@ function acpRig() {
   return { db, chats, close };
 }
 
-test("S-6: a Gemini or Copilot chat's transcript holds the person's own messages", { todo: 'S-6' }, async () => {
+test("S-6: a Gemini or Copilot chat's transcript holds the person's own messages", async () => {
   const { db, chats, close } = acpRig();
   try {
     const chat = chats.start({ prompt: 'TURN for the person', name: 'person', keepAlive: false });

@@ -25,7 +25,7 @@ import {
 } from '@agentry/shared';
 import { activityKey } from './chat-activity.ts';
 import { executionOutcome } from './chat-model.ts';
-import { foldEvent } from './chat-fold.ts';
+import { foldEvent, recordEntry } from './chat-fold.ts';
 import type { AssistantChatOptions } from './agentry-mcp.ts';
 import { chatsFromRuns, LEGACY_PROVIDER, type LegacyRun, type StoredChat } from './chat-records.ts';
 import type { Db } from './db.ts';
@@ -1058,23 +1058,23 @@ export class ChatManager extends EventEmitter {
     if (chat.idleTimer) clearTimeout(chat.idleTimer);
     const uploads = this.uploads;
     const shown = chat.session?.send({ text, attachments, ...(uploads ? { read: (id: string) => uploads.read(id).bytes } : {}) }) ?? text;
-    chat.push({
-      kind: 'message',
-      entry: {
-        uuid: randomUUID(),
-        role: 'user',
-        timestamp: now(),
-        model: null,
-        isSidechain: false,
-        parentToolUseId: null,
-        blocks: [
-          ...attachments
-            .filter((a) => a.kind !== 'file')
-            .map((a) => ({ type: a.kind === 'image' ? ('image' as const) : ('document' as const), mediaType: a.mediaType, name: a.name, uploadId: a.id })),
-          { type: 'text', text: shown },
-        ],
-      },
-    });
+    const entry: TranscriptEntry = {
+      uuid: randomUUID(),
+      role: 'user',
+      timestamp: now(),
+      model: null,
+      isSidechain: false,
+      parentToolUseId: null,
+      blocks: [
+        ...attachments
+          .filter((a) => a.kind !== 'file')
+          .map((a) => ({ type: a.kind === 'image' ? ('image' as const) : ('document' as const), mediaType: a.mediaType, name: a.name, uploadId: a.id })),
+        { type: 'text', text: shown },
+      ],
+    };
+    // A provider whose transcript Agentry keeps itself has no other record of what the person said
+    recordEntry(this.host, chat, entry);
+    chat.push({ kind: 'message', entry });
     chat.setStatus('busy');
   }
 
