@@ -43,9 +43,11 @@ export const MILESTONES_PATH = '/tasks/milestones';
 export const NEW_PROJECT_PATH = '/projects/new';
 /**
  * `?new=1` on Tasks opens the New task form (a dialog on a desktop, a full screen on a phone); the
- * command palette and the phone's FAB lead here. `?new=1&status=todo` preselects its column.
+ * command palette and the phone's FAB lead here. `?new=1&column=todo` preselects its column: not
+ * `status`, which is the board's status filter.
  */
 export const NEW_TASK_PARAM = 'new';
+export const NEW_TASK_COLUMN_PARAM = 'column';
 export const NEW_TASK_PATH = `${TASKS_PATH}?${NEW_TASK_PARAM}=1`;
 
 /**

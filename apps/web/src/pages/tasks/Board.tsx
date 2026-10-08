@@ -11,6 +11,7 @@ import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
 import { DirtyScope } from '../../lib/dirty';
 import {
   boardColumns,
+  NEW_TASK_COLUMN_PARAM,
   NEW_TASK_PARAM,
   openCount,
   returnState,
@@ -130,7 +131,7 @@ function TasksBoard() {
   // ---- New task: `?new=1` (the palette, the phone's button), a column's "+", the header and N ----
   const [newIn, setNewIn] = useState<{ projectId: string | null; status?: WorkItemStatus } | null>(null);
   const linked = params.get(NEW_TASK_PARAM) === '1';
-  const linkedStatus = params.get('status');
+  const linkedStatus = params.get(NEW_TASK_COLUMN_PARAM);
   const creating = newIn ?? (linked ? { projectId: scope.projectId, ...(isStatus(linkedStatus) ? { status: linkedStatus } : {}) } : null);
   const openNew = useCallback((projectId: string | null, status?: WorkItemStatus) => setNewIn({ projectId: projectId ?? scope.projectId, ...(status ? { status } : {}) }), [scope.projectId]);
   const closeNew = () => {
@@ -140,7 +141,7 @@ function TasksBoard() {
         (previous) => {
           const next = new URLSearchParams(previous);
           next.delete(NEW_TASK_PARAM);
-          next.delete('status');
+          next.delete(NEW_TASK_COLUMN_PARAM);
           return next;
         },
         { replace: true },
