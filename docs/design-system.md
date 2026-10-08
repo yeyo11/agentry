@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-10-08T22:00:00Z
+updated_at: 2026-10-08T23:59:30Z
 tags:
     - design-system
     - web
@@ -1585,7 +1585,9 @@ shell, 760 px) with the wizard's `.steps` on top: Acceso → Agentes → Código
 - **Rows** are the first run's `.prov-row.compact` on a desktop and `.prov-cell` on a phone, for agents, `gh`, `glab` and
   YouTrack alike (their monograms from `providers.py`, `hosts.py`, `trackers.py`). The badges and words are the
   providers' table. A row that is not signed in offers **Iniciar sesión** (neutral, no external-link icon: it stays in
-  Agentry); a ready row offers **Cerrar sesión** (ghost), except Copilot, whose vendor documents no sign-out.
+  Agentry); a ready row offers **Cerrar sesión** (ghost). Where signing out only forgets the key Agentry keeps (Gemini,
+  OpenCode, Copilot) it is offered only while one is kept, and its confirmation says so. Copilot's **Código** is gh's sign-in
+  to github.com: the panel's `.signin-note` says "Copilot usa tu sesión de GitHub (gh)" above the code.
 - **Listo** is the one screen with an illustration: the set's `welcome` (`il-md` beside the title on a desktop, `il-sm`
   on a phone), next to a summary and no live data. Each line (`.setup-sum-row`) has the tool, its account or why not, a
   badge (Listo `ok`, Sin sesión `warn`, or the plain "Omitido": skipping is not a state to colour) and where to change it,

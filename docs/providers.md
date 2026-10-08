@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:00:00Z
-updated_at: 2026-10-08T21:00:00Z
+updated_at: 2026-10-08T23:59:30Z
 tags:
     - providers
     - detection
@@ -168,11 +168,14 @@ found (an override included), and spends nothing:
   reports one: `config.json` in `COPILOT_HOME` (`~/.copilot` by default; `copilot help config` calls
   it the "global config.json"). It starts with `//` comment lines and lists `loggedInUsers` and the
   `lastLoggedInUser` (`{ host, login }`, recorded on 1.0.91). An account listed is `ready` and named
-  on the status (`login`, or `login@host` off github.com); no file or no account is `signed-out`,
-  unless `COPILOT_GITHUB_TOKEN`, `GH_TOKEN` or `GITHUB_TOKEN` is set, which signs the CLI in with
-  nothing free to check, and stays `unknown` / `no-probe`. The token is in the system's credential
-  store, so an account whose token was revoked reads `ready` until a chat fails on it. The UI offers
-  no Retry for `no-probe`: there is no check to repeat.
+  on the status (`login`, or `login@host` off github.com). With no account listed, Copilot is still
+  `ready` when `COPILOT_GITHUB_TOKEN`, `GH_TOKEN` or `GITHUB_TOKEN` is in its environment (the vault's
+  included: the manifest's `credentialEnvSignsIn`), or when the GitHub CLI holds a github.com token
+  (`gh auth token --hostname github.com` exits 0 and prints something; the manifest's `ghFallback`,
+  run by `providers/gh-fallback.ts` with the probe timeout, the token never kept). Both are what
+  GitHub documents for containers, where Copilot's own login cannot store a token without a
+  keychain (2026-10-08, [[setup.md]], "Copilot in a container"). Otherwise it is `signed-out`. A
+  stored token is not validated for free, so one that was revoked reads `ready` until a chat fails on it.
 - **Copilot's models** are not in `initialize`. From 1.0.91 `session/new` lists them (`models` and a
   `model` config option), but every session it opens stays in the person's Copilot history and
   `session/close` does not remove it, so detection never opens one. A chat's session teaches them
@@ -348,4 +351,4 @@ calls `POST /providers/refresh`, and an install or sign-in made in a terminal ar
 
 ## Related
 
-[[plans/multi-provider.md]] · [[status.md]] · [[decision-engine.md]] · [[desktop.md]] · [[deploy.md]] · [[knowledge-base.md]] · [[tunnel.md]] · [[code-hosts.md]]
+[[plans/multi-provider.md]] · [[status.md]] · [[decision-engine.md]] · [[desktop.md]] · [[deploy.md]] · [[knowledge-base.md]] · [[tunnel.md]] · [[code-hosts.md]] · [[setup.md]]

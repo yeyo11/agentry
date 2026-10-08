@@ -66,13 +66,29 @@ glab may also read that warning line, before it says the key worked.
   and prints a banner (`A new version of glab is available`), which the parser ignores.
 - **gh** asks nothing in either path; with no keyring it keeps the token in `GH_CONFIG_DIR/hosts.yml`.
   This was not observed here (no token was accepted) and is gh's documented fallback.
-- **Copilot**: its `login --help` says that when no credential store is found the token "will be stored
-  in a plain text config file under ~/.copilot/", and mentions no question. That step runs only after
-  an approval or a valid token, which these recordings never give, and the application is bundled
-  inside a native binary that could not be searched for a prompt. **Unverified**: whether Copilot asks
-  before storing in plain text. Neither recorded path asked anything before the code or the refusal,
-  and stdin was `/dev/null` or a closed pipe, so a question would end the command rather than hang it.
-  To settle it, run `copilot login --device-code` once with a real account and no keyring.
+- **Copilot** (observed 2026-10-08 in the image, Copilot 1.0.93, with a real account, no TTY and no
+  system keychain): `copilot login --device-code` prints its code, waits, and once the person
+  approves it on github.com writes on stderr
+
+  ```
+  Login succeeded, but the token was not saved. Install a system keychain or rerun login and accept plaintext storage.
+  ```
+
+  and exits 1. Its `login --help` says that with no credential store the token "will be stored in a
+  plain text config file under ~/.copilot/", but that takes a question only a real terminal can
+  answer: stdin from `/dev/null` and a pipe carrying `y\n` both end with the same message. Nothing is
+  written under `COPILOT_HOME`. `copilot login --with-token` reaches the same save step, so neither
+  of Copilot's own sign-ins works in the image (Agentry showed `cli-refused`).
+
+  What does work, and what Agentry now uses (decision 7 of the plan, docs/setup.md "Copilot in a
+  container"): GitHub's documented credential order, `COPILOT_GITHUB_TOKEN`, `GH_TOKEN`,
+  `GITHUB_TOKEN`, the keychain, then the GitHub CLI's `gh auth token`. With gh signed in to
+  github.com by device code (a `gho_` token kept in `GH_CONFIG_DIR/hosts.yml`) and Copilot never
+  signed in, `copilot -p "Reply with the single word OK" --allow-all-tools </dev/null` answered.
+
+  `copilot-device-code.*` stays as the record of what the command prints before the approval, which
+  is where its trouble starts; no parser reads it any more (`DEVICE_PATTERNS` has no Copilot row).
+  `copilot-with-token-*` show its refusals of a bad and an invalid token.
 
 ## Tailscale (recorded 2026-10-08, for the daemon the image runs)
 
@@ -102,5 +118,5 @@ Also measured on the throwaway, and why `LoginService` runs what it runs:
 
 ## Blockers
 
-None: every device flow ran without a terminal, so the plan keeps all four device methods (gh's
-included).
+Every device flow runs without a terminal. Copilot's is the one that cannot finish there: it gets
+its approval and then cannot store the token (above), so Copilot's Code is gh's device sign-in.

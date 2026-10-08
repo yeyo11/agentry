@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-08T21:00:00Z
-updated_at: 2026-10-08T23:59:00Z
+updated_at: 2026-10-08T23:59:30Z
 tags:
     - setup
     - security
@@ -28,8 +28,10 @@ through a temp file created at 0600 (`writeAtomic`), keyed by tool and variable:
 ```
 
 It keeps only what a CLI reads from its **environment**: Claude Code's token or key, Gemini's key,
-OpenCode's upstream keys, YouTrack's address and token. A CLI with a login command of its own
-(Codex, Copilot, gh, glab) stores its credential itself, where it always does (decision 4).
+Copilot's token (`COPILOT_GITHUB_TOKEN`), OpenCode's upstream keys, YouTrack's address and token. A
+CLI with a login command of its own (Codex, gh, glab) stores its credential itself, where it always
+does (decision 4). Copilot has one, but it cannot keep a token without a system keychain unless a
+terminal answers it (see [Copilot in a container](#copilot-in-a-container)), so its token is kept here.
 
 **The key**, in this order:
 
@@ -77,7 +79,10 @@ Core sets the vault once (`useVaultForChildren`) before anything spawns. Every s
 | `setup/logins.ts` sign-in commands | the tool |
 
 OpenCode's manifest lists the upstream keys as `credentialEnv`, so a stored key reads as `no-probe`
-instead of signed out.
+instead of signed out. Copilot's manifest also sets `credentialEnvSignsIn`, so its token reads as
+signed in (see below). The ACP driver lays the vault over the server's own environment, so a Copilot
+chat also inherits `GH_CONFIG_DIR` (set image-wide in Docker) and the `PATH` that finds `gh`: its gh
+fallback works at run time, not only in detection.
 
 ## Methods per tool
 
@@ -89,7 +94,7 @@ instead of signed out.
 | `claude-code` | vault, `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`, one at a time | none | vault cleared, then `claude auth logout` |
 | `codex` | `codex login --with-api-key`, stdin | `codex login --device-auth` | `codex logout` |
 | `gemini` | vault, `GEMINI_API_KEY` | none | vault cleared |
-| `copilot` | `copilot login --with-token`, stdin | `copilot login --device-code` | none documented: `unsupported` |
+| `copilot` | vault, `COPILOT_GITHUB_TOKEN` (a classic `ghp_` token is refused) | gh's, on github.com (`deviceVia`) | vault cleared (`signOutKeyOnly`) |
 | `opencode` | vault, one of `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY` | none | vault cleared |
 | `gh` | `gh auth login --with-token --hostname H`, stdin | `gh auth login --web --hostname H` | `gh auth logout --hostname H` |
 | `glab` | `glab auth login --hostname H --stdin` | `glab auth login --device --hostname H` | `glab auth logout --hostname H` |
@@ -98,6 +103,51 @@ instead of signed out.
 
 OpenCode's four variables are the ones models.dev lists for those providers, which OpenCode loads
 its providers from (https://opencode.ai/docs/providers/); any other variable is refused.
+
+Two fields shape the panel beyond key and device. `deviceVia` names the tool whose device sign-in a
+tool uses: only Copilot's, `{ tool: 'gh', host: 'github.com' }`. `signOutKeyOnly` marks a tool whose
+sign-out only forgets the kept key (Gemini, OpenCode, Copilot); its row offers Sign out only while a
+key is kept.
+
+## Copilot in a container
+
+Decided by the owner on 2026-10-08, after a bug found in the Docker image. Copilot CLI 1.0.93's own
+`copilot login --device-code`, with no TTY and no system keychain, prints the code, waits for the
+approval, then writes on stderr `Login succeeded, but the token was not saved. Install a system
+keychain or rerun login and accept plaintext storage.` and exits 1. The plain-text question can only
+be answered on a real terminal (stdin `/dev/null` and a pipe with `y` both give the same message),
+and `copilot login --with-token` reaches the same step. Nothing is written under `COPILOT_HOME`, and
+Agentry showed `cli-refused`. Driving a terminal to answer it would break the one rule.
+
+GitHub's documentation for containers and non-interactive use
+(https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/authenticate-copilot-cli)
+names the way instead. Copilot looks for credentials in this order: `COPILOT_GITHUB_TOKEN`,
+`GH_TOKEN`, `GITHUB_TOKEN`, an OAuth token in the system keychain, then the GitHub CLI's
+(`gh auth token`). It takes fine-grained tokens with the Copilot Requests permission and OAuth tokens
+of the Copilot and gh apps, and not classic `ghp_` tokens. So:
+
+- **Key.** The fine-grained token is sealed in the vault and handed to Copilot's own processes as
+  `COPILOT_GITHUB_TOKEN`, like Gemini's key, never in argv. A `ghp_` token is refused with `400` and
+  a reason, and the panel says so before sending it. Sign out forgets it.
+- **Code.** Copilot no longer runs its own `--device-code`. `POST /setup/logins` with
+  `{ tool: 'copilot', method: 'device' }` starts gh's device sign-in to github.com, the same session
+  the GitHub row would start (one live sign-in per tool and host), and answers it, `tool: 'gh'`. The
+  panel says "Copilot uses your GitHub sign-in (gh)". When it succeeds, Copilot's readiness is read
+  again with gh's.
+- **Detection.** Copilot reads `ready` when its state file lists an account (a keychain-backed
+  `copilot login`, as on a desktop), when one of its three variables is in its environment, vault
+  included, or when `gh auth token --hostname github.com` succeeds with something printed. That last
+  check runs the `gh` on the PATH Copilot gets, through `hosts/exec.ts` (gh's environment, a process
+  group, the probe timeout, no retry), and reads only the exit code and whether the output is empty:
+  the token is never kept or logged (`providers/gh-fallback.ts`). The account is the handshake's,
+  when it gives one. A sign-in or sign-out of gh on github.com from Agentry refreshes Copilot at once;
+  one made in a terminal is seen at the next detection (`PROVIDERS_TTL_MS`).
+- **Outside Docker** the same rules hold and change nothing: a keychain-backed `copilot login` still
+  counts first.
+
+Verified in the image on 2026-10-08: gh signed in to github.com by device code (`gho_…`, kept in
+`/data/provider-homes/gh/hosts.yml` because `GH_CONFIG_DIR` is set image-wide), Copilot never signed
+in, and `copilot -p "Reply with the single word OK" --allow-all-tools </dev/null` answered.
 
 ## Sign-ins
 
@@ -119,7 +169,8 @@ for an hour; one live session per tool and host, and a new one cancels the one s
 - **Success is the readiness probe**, never the output: the provider detector refreshed for that
   provider (Claude Code with Core's system read taken again), the code hosts' detector refreshed and
   the host's `signedIn`, or YouTrack's tracker detection.
-- **Sign-out** as the table says. Copilot answers `signedOut: false`, reason `unsupported`.
+- **Sign-out** as the table says. Copilot's forgets only the token Agentry keeps: neither a
+  `copilot login` of the machine's own nor gh's sign-in is touched.
 
 The device patterns were written from the documented formats, and the tests run them against fake
 output (`packages/core/test/fixtures/logins/*-fake.txt`). The recordings of the real commands, made
@@ -223,10 +274,14 @@ namespace; the pure logic (methods per tool, failures, steps, summary) is `lib/s
   stream is down; succeeded closes the panel and reads every readiness list again, cancelled closes it,
   failed and expired say why by code with the one action (Retry, Use a key, See install, Get another
   code). Closing a panel whose code still waits cancels the session. Claude Code's panel names
-  `claude setup-token` inside the sentence, with no copy button.
+  `claude setup-token` inside the sentence, with no copy button. Copilot's Code says "Copilot uses
+  your GitHub sign-in (gh)" and asks GitHub for the code (`deviceVia`); its Key field takes a
+  `github_pat_…` and refuses a `ghp_` one inline before sending it (`refusedKey`).
 - **Sign out** (`SignOutButton`) asks first, as a destructive action, and calls
   `DELETE /setup/credentials/:tool` (per host for `gh` and `glab`). It is offered where the tool works,
-  or keeps only a key Agentry holds, and its vendor documents a way out: never for Copilot.
+  or keeps only a key Agentry holds. Where it only forgets that key (`signOutKeyOnly`: Gemini,
+  OpenCode, Copilot) it is offered only while one is kept, and the confirmation says the tool stops
+  working only if it has no other sign-in.
 - **Where the panel is.** Settings → Providers (each signed-out row's Sign in, a ready row's Sign out;
   `useProviderSignIn`), Settings → Integrations (a signed-out CLI's Sign in, Add another host on a
   ready one, and Sign in or Sign out at the end of each known host's line; the rows moved to

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-08T19:00:00Z
-updated_at: 2026-10-08T23:59:00Z
+updated_at: 2026-10-08T23:59:30Z
 tags:
     - plan
     - setup
@@ -48,7 +48,7 @@ the research of 2026-10-08; the table is the result.
 | Claude Code | `CLAUDE_CODE_OAUTH_TOKEN` (made with `claude setup-token` on the person's own machine) or `ANTHROPIC_API_KEY`, env | none: `auth login` needs a local callback or a pasted code on a terminal |
 | Codex | `codex login --with-api-key`, stdin; the CLI stores it in `CODEX_HOME` | `codex login --device-auth` (beta; the person may have to turn device login on in ChatGPT first) |
 | Gemini CLI | `GEMINI_API_KEY`, env | none: Google sign-in lives in its TUI |
-| Copilot CLI | `copilot login --with-token`, stdin (fine-grained PAT with Copilot Requests), or `COPILOT_GITHUB_TOKEN` | `copilot login --device-code` |
+| Copilot CLI | `COPILOT_GITHUB_TOKEN`, env (fine-grained PAT with Copilot Requests; decision 7) | gh's device code: Copilot falls back to `gh auth token` (decision 7) |
 | OpenCode | the upstream provider's key, env (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, …) | none usable: subscriptions go through a TUI menu |
 | gh | `gh auth login --with-token -h <host>`, stdin | `gh auth login --web -h <host>` prints a one-time code, and works with no TTY (recorded 2026-10-08) |
 | glab | `glab auth login --hostname <host> --stdin` | `glab auth login --device --hostname <host>` (GitLab 17.9 or later) |
@@ -61,7 +61,7 @@ sign-ins, or any OAuth client of our own. Those stay links, with the reason said
 
 1. **Key and device code** (owner, 2026-10-08). A key or token field for all eight tools, and the
    device-code flow where the vendor documents one: Codex, Copilot, glab, and gh once a recording shows
-   `--web` works with no terminal.
+   `--web` works with no terminal. (Copilot's became gh's: decision 7.)
 2. **A setup assistant on first start** (owner). The first-run screen grows into steps: Access →
    Agents → Code and work items → Done. Every step can be skipped, and every step is the same panel
    Settings shows.
@@ -74,6 +74,7 @@ sign-ins, or any OAuth client of our own. Those stay links, with the reason said
    goes to that CLI's own login command on stdin and is stored where the CLI stores it (under `/data`
    in the image). Agentry keeps only what a CLI reads from its environment: Claude Code, Gemini,
    OpenCode's upstream keys, YouTrack. Those are sealed and given to the child process only.
+   (Copilot moved to the vault side: decision 7.)
 5. **A secret never goes in argv, a log, an event or an answer.** Write-only fields, stdin or env only.
 6. **Tailscale runs inside the image, and is signed in from the app** (owner, 2026-10-08). Remote
    access could not be set up in a container: the image had no `tailscale` and the tunnel was off
@@ -85,6 +86,17 @@ sign-ins, or any OAuth client of our own. Those stay links, with the reason said
    key outside argv, so decision 5 holds), and signs out with `tailscale logout`. Only that daemon is
    Agentry's to sign in (`AGENTRY_TAILSCALE_MANAGED`); a machine's own Tailscale stays the person's.
    Tailnet only, never Funnel.
+7. **Copilot signs in through its environment and gh, not its own login** (owner, 2026-10-08).
+   In the image, `copilot login --device-code` (1.0.93) took the approval and then exited 1 with
+   `Login succeeded, but the token was not saved. Install a system keychain or rerun login and accept
+   plaintext storage.`: with no keychain, only a real terminal can accept plain-text storage, and
+   `--with-token` stops at the same step. GitHub documents environment tokens for containers and the
+   GitHub CLI's sign-in as Copilot's last credential source, and a Copilot that never signed in
+   answered a prompt on gh's token alone. So Copilot's key goes into the vault as
+   `COPILOT_GITHUB_TOKEN` (decision 4 no longer applies to it; a classic `ghp_` token is refused),
+   its Code signs gh in to github.com with gh's device flow, and its readiness counts the variables
+   and `gh auth token --hostname github.com` beside its state file. Sign-out forgets the kept token.
+   Details in [[setup.md]], "Copilot in a container".
 
 ## Design
 
@@ -110,8 +122,8 @@ sign-ins, or any OAuth client of our own. Those stay links, with the reason said
     readiness probe, not by reading the output. A session expires after the code's lifetime or 15
     minutes; cancelling kills the process group.
   - Sign-out runs the documented command (`codex logout`, `gh auth logout -h`, `glab auth logout
-    --hostname`, `claude auth logout` plus clearing the vault) or clears the vault. Copilot has no
-    sign-out command: the panel says so.
+    --hostname`, `claude auth logout` plus clearing the vault) or clears the vault. Copilot's clears
+    the token the vault keeps (decision 7).
 - **Setup state** (`GET /setup`): what is done and what is not, for the assistant and for a "finish
   setting up" card: access mode, each enabled agent's readiness, each host, YouTrack, and whether the
   assistant was finished or skipped (`setupSeen`, which replaces `providersStepSeen` and honours its
@@ -158,7 +170,8 @@ and use the vault.
    --hostname gitlab.com`, `gh auth login --web -h github.com`. Stop each once the code is shown; no
    account is signed in. Also record whether Copilot, with no keychain, asks before storing in plain
    text and whether that question can be answered without a terminal. Whatever cannot run without a
-   terminal drops its device method and says why.
+   terminal drops its device method and says why. Settled with a real account on 2026-10-08: it asks,
+   and only a terminal can answer, so Copilot dropped its own device method (decision 7).
 2. **Core and API**: vault and migration, child environments, `LoginService`, sign-out, setup state,
    routes, types, OpenAPI, README, tests (fake CLIs that print the recorded output).
 3. **Docker**: the three CLIs, their homes, the key.
