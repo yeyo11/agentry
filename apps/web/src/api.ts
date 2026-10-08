@@ -240,6 +240,11 @@ import type {
   WriteConfigFileRequest,
   WriteDocumentRequest,
   YoutrackCredentialsStatus,
+  LoginSession,
+  SetupState,
+  SetupTool,
+  SignOutResult,
+  StartLoginRequest,
   SaveDashboardLayoutRequest,
   StoredDashboardLayout,
 } from '@agentry/shared';
@@ -991,6 +996,14 @@ export const api = {
   youtrackCredentials: (o: ReadOptions = {}) => request<YoutrackCredentialsStatus>('/trackers/youtrack/credentials', o),
   putYoutrackCredentials: (body: PutYoutrackCredentialsRequest) => request<YoutrackCredentialsStatus>('/trackers/youtrack/credentials', { method: 'PUT', body }),
   deleteYoutrackCredentials: () => request<YoutrackCredentialsStatus>('/trackers/youtrack/credentials', { method: 'DELETE' }),
+  /** What the first setup has done and what it has not */
+  setup: (o: ReadOptions = {}) => request<SetupState>('/setup', o),
+  markSetupSeen: () => request<SetupState>('/setup/seen', { method: 'POST' }),
+  /** A key login answers once the CLI and the readiness probe are done, which can take a while; a device one answers at once */
+  startLogin: (body: StartLoginRequest) => request<LoginSession>('/setup/logins', { method: 'POST', body, timeoutMs: 120_000 }),
+  login: (id: string, o: ReadOptions = {}) => request<LoginSession>(`/setup/logins/${enc(id)}`, o),
+  cancelLogin: (id: string) => request<LoginSession>(`/setup/logins/${enc(id)}`, { method: 'DELETE' }),
+  signOut: (tool: SetupTool, host?: string) => request<SignOutResult>(`/setup/credentials/${enc(tool)}${host ? `?host=${enc(host)}` : ''}`, { method: 'DELETE', timeoutMs: 120_000 }),
   /** The project's tracker, or null when it has none */
   projectTracker: (id: string, o: ReadOptions = {}) => request<ProjectTrackerSettings | null>(`/projects/${enc(id)}/tracker`, o),
   /** A null body clears the project's tracker */

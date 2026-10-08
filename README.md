@@ -421,9 +421,10 @@ transpiler.
 | `CLAUDE_CONFIG_DIR` | `~/.claude` | Claude config dir (`/home/node/.claude` in the image) |
 | `AGENTRY_WORKSPACE_DIR` | `./workspace` | Default working directory for runs |
 | `AGENTRY_DATA_DIR` | `./data` | Wrapper state |
+| `AGENTRY_SECRET_KEY` | – | 32 bytes as hex: the key the secret vault (`secrets.json`) seals the keys and tokens Agentry hands a CLI with. The desktop app passes its own. Without it the Docker image makes one beside the data on the first write (`secret.key`, mode 600), which protects a copy of the files but not the volume, so passing it here is the recommended setup; a source install without it keeps the values plain at 0600. The server drops it from its environment once read |
 | `AGENTRY_DEFAULT_PERMISSION_MODE` | `acceptEdits` (`bypassPermissions` in the image) | Mode for runs that do not set one. Without the variable it is editable in Settings → Security and applies to the next run; set, it is shown read-only there. Empty counts as unset |
 | `AGENTRY_MAX_CONCURRENT_RUNS` | `8` | Max simultaneous `claude` processes (1 to 64). Editable in Settings → Security unless set here, like the mode above. Empty counts as unset |
-| `AGENTRY_PROVIDERS_STEP_SEEN` | off | `on` records that the first-run Providers step was answered, so it is only shown again when no provider is ready. Without the variable the step writes it to `app-settings.json` when it is continued or skipped. Empty counts as unset |
+| `AGENTRY_SETUP_SEEN` | off | `on` records that the setup assistant was finished or skipped. Without the variable the assistant writes it to `app-settings.json` (`POST /api/setup/seen`). The older `AGENTRY_PROVIDERS_STEP_SEEN`, and a `providersStepSeen` already stored, still count. Empty counts as unset |
 | `AGENTRY_PUSH_SUBJECT` | `https://github.com/yeyo11/agentry` | The VAPID `sub` claim of every Web Push this server signs: a `mailto:` or `https:` a push service can complain to, naming a real domain — Apple refuses the whole JWT with `403 BadJwtToken` for something like `mailto:agentry@localhost`. Changing it takes effect on the next start, keypair and registered installs untouched |
 | `AGENTRY_AUTH_MODE` | `none` | `none`, `token` or `oidc`. **Seeds** an install that has no `auth.json` yet; after that the setting saved from the UI wins. See [Securing it](#securing-it) |
 | `AGENTRY_AUTH_TOKEN` | – | The bearer token to seed with when the mode is `token`. Only its SHA-256 is stored |
@@ -604,8 +605,9 @@ Types live in [`packages/shared/src/types.ts`](packages/shared/src/types.ts).
 ### Account credentials
 
 The account can be configured at runtime instead of (or on top of) the container environment.
-The credential is stored in the data volume (`credentials.json`, mode 600), applied to every
-new `claude` process, and never returned by any endpoint.
+The credential is kept in the secret vault (`secrets.json` in the data volume, mode 600, sealed when
+there is a key; see [docs/setup.md](docs/setup.md)), handed to every new `claude` process in its
+environment and to no other, and never returned by any endpoint.
 
 | Method | Route | Description |
 | --- | --- | --- |
@@ -613,6 +615,22 @@ new `claude` process, and never returned by any endpoint.
 | PUT | `/auth/credentials` | `{ oauthToken }` or `{ apiKey }` (exactly one) |
 | DELETE | `/auth/credentials` | Remove the stored credential; falls back to the container environment |
 | POST | `/auth/verify` | Sends a minimal real request. `claude auth status` only reports what is configured, it does not validate the token |
+
+### Setup
+
+The first setup, from the app: what is signed in and what is not, and the sign-ins that do the rest
+through each tool's own documented surface. A key is write-only and never in argv, a log, an event
+or an answer; every write, and reading a sign-in, is refused to a chat's token. See
+[docs/setup.md](docs/setup.md).
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/setup` | `{ seen, access, providers, hosts, youtrack, methods, secrets }`: the auth mode, each enabled agent's readiness and whether a key is kept for it, each code host's CLI and the hosts it is signed in to, YouTrack, the sign-in methods per tool, and whether the vault is sealed and its key sits beside the data |
+| POST | `/setup/seen` | Record that the setup assistant was finished or skipped (`setupSeen` in `app-settings.json`); `409` when the environment sets it off |
+| POST | `/setup/logins` | `{ tool, method: 'key' \| 'device', host?, secret?, variable? }`. A key goes on stdin to the CLI's own login (Codex, Copilot, gh, glab) or into the vault (Claude Code, Gemini, OpenCode, YouTrack), and the answer comes once it ended. A device sign-in answers at once; `login.updated` carries the URL and the code, then the end, decided by the tool's readiness probe. Expires after 15 minutes |
+| GET | `/setup/logins/:id` | One sign-in: state, URL and code, `error` code, readiness after it ended |
+| DELETE | `/setup/logins/:id` | Cancel it; the command's process group is killed |
+| DELETE | `/setup/credentials/:tool?host=` | Sign out: `codex logout`, `gh`/`glab auth logout --hostname`, `claude auth logout` plus the vault, or the vault alone. Copilot documents none: `signedOut: false`, reason `unsupported` |
 
 ### Security
 
@@ -809,7 +827,7 @@ One Server-Sent Events stream for the whole app, so a client never has to poll.
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/events?since=ID` | Every change as an `AgentryEvent` (`id:`, `event: <type>`, `data: <json>`): runs created, updated, ended and removed; prompts waiting for a person (`run.waiting`, `permission.requested`/`resolved`); rate limits and account rotation; background tasks, subagents and workflows starting and ending; orchestration, task and merge-conflict changes (`orchestration.updated` also carries `verificationStatus` while the checks run); `changes.updated` when a running task's or the integration branch's commits or uncommitted files move; `chat.activity` when what a chat's live execution is doing changes (a tool call, a block being written or thought, a prompt blocking it), at most once per chat per second; `health.changed` when a chat's health changes; `supervisor.proposed` when the supervisor answers one with a hint; `schedule.changed` (created, updated, enabled, disabled, deleted, rescheduled) and `schedule.fired` (every run row written or moved); `workitem.created`, `workitem.updated` (naming the fields that changed), `workitem.moved` (with the previous column and whether the new one is over its limit) and `workitem.removed`; `milestone.changed` (created, updated, closed, reopened, deleted); `team.changed` (created, updated, removed, template); `flow.run` (queued, started, ended, with its outcome); `journal.changed` (added, removed); `memory.proposal` (created, approved, rejected); `document.changed` (written, removed, tied, untied); `assistant.run` (started, read, ended, failed) and `assistant.proposal` (accepted, discarded, restored); `project.created` and `project.removed` (a project imported, created or removed); `project.updated` (name, key, modules or settings); `sessions.changed`; `system.release` once per newer Agentry release a check finds (not a notification). Opens with `stream.hello`, which carries the server's `version`; honours `Last-Event-ID` against a bounded in-memory buffer and sends `stream.resync` when that id is gone (refetch everything). A `: ping` comment every 15 s |
+| GET | `/events?since=ID` | Every change as an `AgentryEvent` (`id:`, `event: <type>`, `data: <json>`): runs created, updated, ended and removed; prompts waiting for a person (`run.waiting`, `permission.requested`/`resolved`); rate limits and account rotation; background tasks, subagents and workflows starting and ending; orchestration, task and merge-conflict changes (`orchestration.updated` also carries `verificationStatus` while the checks run); `changes.updated` when a running task's or the integration branch's commits or uncommitted files move; `chat.activity` when what a chat's live execution is doing changes (a tool call, a block being written or thought, a prompt blocking it), at most once per chat per second; `health.changed` when a chat's health changes; `supervisor.proposed` when the supervisor answers one with a hint; `schedule.changed` (created, updated, enabled, disabled, deleted, rescheduled) and `schedule.fired` (every run row written or moved); `workitem.created`, `workitem.updated` (naming the fields that changed), `workitem.moved` (with the previous column and whether the new one is over its limit) and `workitem.removed`; `milestone.changed` (created, updated, closed, reopened, deleted); `team.changed` (created, updated, removed, template); `flow.run` (queued, started, ended, with its outcome); `journal.changed` (added, removed); `memory.proposal` (created, approved, rejected); `document.changed` (written, removed, tied, untied); `assistant.run` (started, read, ended, failed) and `assistant.proposal` (accepted, discarded, restored); `project.created` and `project.removed` (a project imported, created or removed); `project.updated` (name, key, modules or settings); `sessions.changed`; `login.updated` when a sign-in of the setup starts, shows its device code or ends (the URL and the code only, never the key or the CLI's output); `system.release` once per newer Agentry release a check finds (not a notification). Opens with `stream.hello`, which carries the server's `version`; honours `Last-Event-ID` against a bounded in-memory buffer and sends `stream.resync` when that id is gone (refetch everything). A `: ping` comment every 15 s |
 
 ```bash
 curl -N localhost:8787/api/events
@@ -847,7 +865,7 @@ The hosts Agentry opens pull and merge requests on, GitHub through `gh` and GitL
 | GET | `/trackers/settings` | The document from `trackers.json`: enabled and binary override per tracker |
 | PUT | `/trackers/settings` | Replace it, validated; trackers are detected again in the background. Not open to a chat's token |
 | GET | `/trackers/youtrack/credentials` | The YouTrack address, whether a token is saved and whether it is encrypted; never the token. Not open to a chat's token |
-| PUT | `/trackers/youtrack/credentials` | `{ host, token? }` — save the address and a permanent token (0600, sealed in the desktop app); YouTrack is detected again before the answer. Not open to a chat's token |
+| PUT | `/trackers/youtrack/credentials` | `{ host, token? }` — save the address and a permanent token (in the secret vault, 0600, sealed when there is a key); YouTrack is detected again before the answer. Not open to a chat's token |
 | DELETE | `/trackers/youtrack/credentials` | Forget them. Not open to a chat's token |
 | GET | `/projects/:id/tracker` | The project's tracker (`id`, `scope`, `query`, `statusMap`), or null |
 | PUT | `/projects/:id/tracker` | Replace the tracker, validated, leaving the rest of the settings; a null body clears it. Not open to a chat's token |
@@ -1214,7 +1232,7 @@ Claude Code precedence is local > project > user.
 | PUT | `/config/tool-presets/default` | `{ defaultPresetId }` — the preset a new chat takes when it names neither `toolPreset` nor `allowedTools` (`toolPreset: null` opts out); `null` clears it |
 | POST | `/config/tool-presets/restore` | Rewrite the three shipped presets as they ship; every other preset and the default are left alone |
 | PUT / DELETE | `/config/tool-presets/:id` | Create, replace or delete a preset — body `{ name, description?, allowedTools, disallowedTools? }` |
-| GET / PUT | `/settings/app` | Settings that change without a restart (`app-settings.json`): `{ allowedHosts, maxConcurrentRuns, defaultPermissionMode, providersStepSeen, sources, allowedHostLayers }`, where each source is `env`, `file` or `default`. `allowedHosts` adds the hosts saved here to those of `AGENTRY_ALLOWED_HOSTS`, and `allowedHostLayers` splits them into `env`, `file` and `runtime` (a running tunnel's host, read-only). The `PUT` body names only what changes; a setting the environment set is refused, except `allowedHosts`, which replaces the saved hosts; a pattern such as `*.com` is refused. Emits `settings.changed` |
+| GET / PUT | `/settings/app` | Settings that change without a restart (`app-settings.json`): `{ allowedHosts, maxConcurrentRuns, defaultPermissionMode, setupSeen, sources, allowedHostLayers }`, where each source is `env`, `file` or `default`. `allowedHosts` adds the hosts saved here to those of `AGENTRY_ALLOWED_HOSTS`, and `allowedHostLayers` splits them into `env`, `file` and `runtime` (a running tunnel's host, read-only). The `PUT` body names only what changes; a setting the environment set is refused, except `allowedHosts`, which replaces the saved hosts; a pattern such as `*.com` is refused. Emits `settings.changed` |
 | GET / PUT / DELETE | `/dashboard/layout?project=<id\|all>` | The layout of one Home, per project and one for All projects (`dashboard-layouts.json`): `{ project, layout }`, `layout` being `null` while the default applies. `PUT` takes the whole layout `{ version: 1, widgets: [{ id, type, size, config? }] }` in drawing order and answers 400 for an unknown or misplaced widget type, a size the type does not offer or a repeated id, 404 for an unknown project; `DELETE` resets it. A chat's token cannot write (403). Emits `dashboard.layout` |
 | GET / PUT / DELETE | `/config/resources/:kind/:name?project=` | Markdown content (a script for `workflows`, whose `format` is `javascript`) — body `{ content }` |
 

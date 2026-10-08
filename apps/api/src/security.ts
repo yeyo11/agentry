@@ -180,6 +180,18 @@ const CHAT_FORBIDDEN = new Set([
   `DELETE ${API_PREFIX}/trackers/youtrack/credentials`,
 ]);
 
+/**
+ * A sign-in hands a CLI a key or shows a device code meant for the person: a prompt injection must
+ * not start one, read one's code, end one or sign a tool out. What is set up (`GET /setup`) stays readable.
+ */
+const CHAT_FORBIDDEN_SETUP = new Set([
+  `POST ${API_PREFIX}/setup/seen`,
+  `POST ${API_PREFIX}/setup/logins`,
+  `GET ${API_PREFIX}/setup/logins/:id`,
+  `DELETE ${API_PREFIX}/setup/logins/:id`,
+  `DELETE ${API_PREFIX}/setup/credentials/:tool`,
+]);
+
 /** How Home is laid out is the person's own setting; a chat may read it. */
 const CHAT_FORBIDDEN_LAYOUT = new Set([`PUT ${API_PREFIX}/dashboard/layout`, `DELETE ${API_PREFIX}/dashboard/layout`]);
 
@@ -518,6 +530,10 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
       }
       if (chat !== null && CHAT_FORBIDDEN_LAYOUT.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
         void reply.status(403).send({ error: "a chat's token cannot change how Home is laid out: that is the person's setting" });
+        return reply;
+      }
+      if (chat !== null && CHAT_FORBIDDEN_SETUP.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+        void reply.status(403).send({ error: "a chat's token cannot start, read or cancel a sign-in, or sign a tool out: that is the person's" });
         return reply;
       }
       if (chat !== null && CHAT_FORBIDDEN_TRACKERS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
