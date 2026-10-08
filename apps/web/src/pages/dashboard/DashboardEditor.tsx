@@ -1,33 +1,37 @@
 import type { Project } from '@agentry/shared';
 import {
-  ArrowDown,
-  ArrowUp,
+  Activity,
   BookText,
   CalendarClock,
+  ChartColumn,
+  Check,
+  ChevronDown,
+  ChevronUp,
   FileText,
   FolderGit2,
   GitFork,
   Gauge,
   GripVertical,
+  LayoutGrid,
   LayoutList,
   MessageSquarePlus,
   Package,
   Plus,
-  Radio,
   Download,
+  RotateCcw,
   Rocket,
-  Timer,
   Workflow,
   X,
   type LucideIcon,
 } from 'lucide-react';
 import { useState, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { Dialog } from '@agentry/ui/components/Dialog';
 import { Sheet } from '@agentry/ui/components/controls';
 import { ICON, ICON_SM } from '@agentry/ui/components/icons';
 import { Segmented } from '@agentry/ui/components/ui';
 import { NARROW, useMediaQuery } from '@agentry/ui/lib/media';
+import { FabStandIn } from '../../components/shell/Fab';
 import { Dashboard, type WidgetFrame } from './Dashboard';
 import { addableWidgets, addWidget, moveWidgetTo, positionOf, presentWidgets, removeWidget, resizeWidget, sameLayout, shiftWidget, widgetsInArea } from './edit';
 import type { DashboardLayout, DashboardScope, LayoutWidget, WidgetSize } from './layout';
@@ -35,10 +39,10 @@ import { missingModules, widgetDefinition, WIDGET_AREAS, type WidgetArea, type W
 
 /** The symbol of each widget type, in the picker and on the phone's list. */
 const ICONS: Record<string, LucideIcon> = {
-  kpis: Gauge,
-  now: Radio,
+  kpis: LayoutGrid,
+  now: Activity,
   orchestrations: Workflow,
-  limits: Timer,
+  limits: ChartColumn,
   pickUp: MessageSquarePlus,
   today: Gauge,
   schedules: CalendarClock,
@@ -253,7 +257,7 @@ function PickRow({ definition, phone, onAdd }: { definition: WidgetDefinition; p
           </>
         )}
       </span>
-      <button type="button" className="btn btn-sm pick-add" aria-label={t('edit.addNamed', { title })} onClick={onAdd}>
+      <button type="button" className="btn btn-small pick-add" aria-label={t('edit.addNamed', { title })} onClick={onAdd}>
         <Plus {...ICON_SM} />
         {t('edit.addShort')}
       </button>
@@ -262,7 +266,7 @@ function PickRow({ definition, phone, onAdd }: { definition: WidgetDefinition; p
 }
 
 /** The add-widget picker: a dialog on a desktop, a Sheet on a phone. It stays open so several can be added. */
-function AddWidgetPicker({ layout, scope, phone, onAdd, onClose }: { layout: DashboardLayout; scope: DashboardScope; phone: boolean; onAdd: (type: string) => void; onClose: () => void }) {
+function AddWidgetPicker({ layout, scope, project, phone, onAdd, onClose }: { layout: DashboardLayout; scope: DashboardScope; project: Project | null; phone: boolean; onAdd: (type: string) => void; onClose: () => void }) {
   const { t } = useTranslation('home');
   const addable = addableWidgets(layout, scope);
   const present = presentWidgets(layout);
@@ -271,7 +275,7 @@ function AddWidgetPicker({ layout, scope, phone, onAdd, onClose }: { layout: Das
       {addable.length === 0 ? (
         <p className="muted">{t('edit.allAdded')}</p>
       ) : (
-        <ul className="pick-list">
+        <ul className={`pick-list ${phone ? 'is-phone' : ''}`.trim()}>
           {addable.map((definition) => (
             <PickRow key={definition.type} definition={definition} phone={phone} onAdd={() => onAdd(definition.type)} />
           ))}
@@ -282,7 +286,8 @@ function AddWidgetPicker({ layout, scope, phone, onAdd, onClose }: { layout: Das
           <h3 className="section-label">{t('edit.have')}</h3>
           <ul className="pick-have">
             {present.map((definition) => (
-              <li key={definition.type} className="chip">
+              <li key={definition.type} className="chip chip-static pick-have-chip">
+                <Check {...ICON_SM} className="pick-have-check" />
                 {t(definition.titleKey)}
               </li>
             ))}
@@ -291,18 +296,24 @@ function AddWidgetPicker({ layout, scope, phone, onAdd, onClose }: { layout: Das
       )}
     </>
   );
-  const close = (
-    <button type="button" className="btn" onClick={onClose}>
-      {t('edit.close')}
-    </button>
+  // The Sheet closes with its own ✕ and a swipe; the dialog says why the list is short and leaves with Cancelar
+  const footer = (
+    <>
+      <span className="mono small muted pick-once">{t('edit.once')}</span>
+      <button type="button" className="btn btn-quiet" onClick={onClose}>
+        {t('edit.cancel')}
+      </button>
+    </>
   );
   return phone ? (
-    <Sheet open onOpenChange={(open) => !open && onClose()} title={t('edit.pickerTitle')} description={t('edit.pickerHint')} footer={close}>
+    <Sheet open onOpenChange={(open) => !open && onClose()} title={t('edit.pickerTitle')}>
       {body}
     </Sheet>
   ) : (
-    <Dialog title={t('edit.pickerTitle')} onClose={onClose} footer={close} width={640}>
-      <p className="muted">{t('edit.pickerHint')}</p>
+    <Dialog title={t('edit.pickerTitle')} onClose={onClose} footer={footer} width={640}>
+      <p className="pick-hint">
+        {project ? <Trans t={t} i18nKey="edit.pickerHint" values={{ name: project.name }} components={{ name: <code className="mono" /> }} /> : t('edit.pickerHintAll')}
+      </p>
       {body}
     </Dialog>
   );
@@ -326,12 +337,12 @@ function PhoneEditList({ editor }: { editor: LayoutEditor }) {
             <span className="pick-ico" aria-hidden>
               <WidgetIcon type={widget.type} />
             </span>
-            <span className="pick-name grow ellipsis">{title}</span>
+            <span className="pick-name move-name grow ellipsis">{title}</span>
             <button type="button" className="icon-btn" disabled={first} aria-label={first ? t('edit.isFirst', { title }) : t('edit.up', { title })} onClick={() => editor.shift(widget.id, -1)}>
-              <ArrowUp {...ICON} />
+              <ChevronUp {...ICON} />
             </button>
             <button type="button" className="icon-btn" disabled={last} aria-label={last ? t('edit.isLast', { title }) : t('edit.down', { title })} onClick={() => editor.shift(widget.id, 1)}>
-              <ArrowDown {...ICON} />
+              <ChevronDown {...ICON} />
             </button>
             <button type="button" className="icon-btn widget-remove" aria-label={t('edit.remove', { title })} onClick={() => editor.remove(widget.id)}>
               <X {...ICON} />
@@ -344,9 +355,11 @@ function PhoneEditList({ editor }: { editor: LayoutEditor }) {
 }
 
 /**
- * Edit mode of a Home: the bar (what is being edited, Añadir widget, Restablecer, Listo), then the
- * dashboard with every widget in its frame, or on a phone the list of widgets with up and down.
- * Nothing is saved with a button: each change is written at once, and Listo only leaves the mode.
+ * Edit mode of a Home: its head (whose Home it is, "Ordena tu inicio", the sentence that says each
+ * change saves at once, and Añadir widget, Restablecer, Listo), then the dashboard with every widget
+ * in its frame, or on a phone the list of widgets with up and down. Nothing is saved with a button:
+ * each change is written at once, and Listo only leaves the mode. On All projects the head takes the
+ * place of the hero and is the page's own; under a project's header and tabs it heads the tab.
  */
 export function EditableDashboard({
   layout: saved,
@@ -357,6 +370,7 @@ export function EditableDashboard({
   save,
   reset,
   onDone,
+  page = false,
 }: {
   layout: DashboardLayout;
   project: Project | null;
@@ -366,6 +380,8 @@ export function EditableDashboard({
   save: (layout: DashboardLayout) => Promise<void>;
   reset: () => Promise<void>;
   onDone: () => void;
+  /** The head stands in for the page's hero (All projects), so it is the page's h1 */
+  page?: boolean;
 }) {
   const { t } = useTranslation('home');
   const phone = useMediaQuery(NARROW);
@@ -384,41 +400,67 @@ export function EditableDashboard({
     </button>
   );
 
+  const Title = page ? 'h1' : 'h2';
+  const resetButton = (
+    <button type="button" className="btn btn-quiet edit-reset" disabled={!stored} onClick={() => void reset()}>
+      <RotateCcw {...ICON_SM} />
+      {t('edit.reset')}
+    </button>
+  );
+  const doneButton = (
+    <button type="button" className={`btn edit-done ${phone ? 'btn-tall' : ''}`.trim()} onClick={onDone}>
+      <Check {...ICON_SM} />
+      {t('edit.done')}
+    </button>
+  );
+
   return (
     <>
-      <div className="home-editbar" role="group" aria-label={t('edit.barLabel')}>
-        <p className="home-editbar-title">{project ? t('edit.title', { name: project.name }) : t('edit.titleAll')}</p>
-        <div className="home-editbar-actions">
-          {!phone && (
-            <button type="button" className="btn" onClick={() => setPicking(true)}>
-              <Plus {...ICON_SM} />
-              {t('edit.add')}
-            </button>
-          )}
-          <button type="button" className="btn" disabled={!stored} onClick={() => void reset()}>
-            {t('edit.reset')}
-          </button>
-          <button type="button" className="btn edit-done" onClick={onDone}>
-            {t('edit.done')}
-          </button>
-        </div>
-      </div>
       {phone ? (
         <>
-          <p className="muted small edit-note">{t('edit.phoneNote')}</p>
+          <div className="home-editbar is-phone" role="group" aria-label={t('edit.barLabel')}>
+            <div className="home-editbar-text">
+              <span className="section-label ellipsis">{project ? project.name : t('edit.titleAll')}</span>
+              <Title className="home-editbar-title">{t('edit.enter')}</Title>
+            </div>
+            {doneButton}
+          </div>
+          <p className="home-editbar-lede edit-note">{t(project ? 'edit.phoneNote' : 'edit.phoneNoteAll')}</p>
+          {/* Nothing starts from a list being arranged: the FAB goes, the tab bar stays */}
+          <FabStandIn />
           <PhoneEditList editor={editor} />
-          <button type="button" className="widget-add" onClick={() => setPicking(true)}>
-            <Plus {...ICON} />
-            {t('edit.add')}
-          </button>
+          <div className="move-foot">
+            <button type="button" className="widget-add" onClick={() => setPicking(true)}>
+              <Plus {...ICON} />
+              {t('edit.add')}
+            </button>
+            {resetButton}
+          </div>
         </>
       ) : (
-        <Dashboard layout={editor.layout} project={project} label={label} frame={frame} after={add} />
+        <>
+          <div className={`home-editbar ${page ? 'page-header home-hero' : ''}`.trim()} role="group" aria-label={t('edit.barLabel')}>
+            <div className="home-editbar-text">
+              <span className="section-label">{project ? t('edit.title', { name: project.name }) : t('edit.titleAll')}</span>
+              <Title className={`home-editbar-title ${page ? 'text-display' : ''}`.trim()}>{t('edit.heading')}</Title>
+              <p className="home-editbar-lede">{t(project ? 'edit.lede' : 'edit.ledeAll')}</p>
+            </div>
+            <div className="home-editbar-actions">
+              <button type="button" className="btn" onClick={() => setPicking(true)}>
+                <Plus {...ICON_SM} />
+                {t('edit.add')}
+              </button>
+              {resetButton}
+              {doneButton}
+            </div>
+          </div>
+          <Dashboard layout={editor.layout} project={project} label={label} frame={frame} after={add} />
+        </>
       )}
       <div className="sr-only" role="status" aria-live="polite">
         {message}
       </div>
-      {picking && <AddWidgetPicker layout={editor.layout} scope={scope} phone={phone} onAdd={editor.add} onClose={() => setPicking(false)} />}
+      {picking && <AddWidgetPicker layout={editor.layout} scope={scope} project={project} phone={phone} onAdd={editor.add} onClose={() => setPicking(false)} />}
     </>
   );
 }

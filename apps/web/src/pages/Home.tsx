@@ -137,7 +137,7 @@ function PhoneTabCells({ views, counts }: { views: ProjectViewId[]; counts: Part
  * A Home's dashboard: its stored layout (or the default), and in edit mode the same widgets in
  * their frames. A project's layout is its own; All projects has one of its own too.
  */
-function HomeDashboard({ project, editing, onDone }: { project: Project | null; editing: boolean; onDone: () => void }) {
+function HomeDashboard({ project, editing, onDone, page }: { project: Project | null; editing: boolean; onDone: () => void; page?: boolean }) {
   const { t } = useTranslation('home');
   const scope = project ? 'project' : 'global';
   const home = useHomeLayout(project ? project.id : ALL_PROJECTS_LAYOUT, scope);
@@ -145,7 +145,7 @@ function HomeDashboard({ project, editing, onDone }: { project: Project | null; 
   // Drawing the default while the stored layout is on its way would show one Home and then another
   if (home.loading) return <Skeleton rows={5} height={18} />;
   return editing ? (
-    <EditableDashboard layout={home.layout} project={project} scope={scope} label={label} stored={home.stored} save={home.save} reset={home.reset} onDone={onDone} />
+    <EditableDashboard layout={home.layout} project={project} scope={scope} label={label} stored={home.stored} save={home.save} reset={home.reset} onDone={onDone} page={page} />
   ) : (
     <Dashboard layout={home.layout} project={project} label={label} />
   );
@@ -225,9 +225,14 @@ function ProjectPage({ project }: { project: Project }) {
         <PhoneHead project={project} onEditHome={editing ? undefined : () => setEditing(true)} />
         <MissingAlert project={project} />
         {/* The cells are how a phone reaches the board and the settings: under the whole dashboard
-            they sat a dozen widgets down, where the reference has them near the top */}
-        <PhoneAssistantRow project={project} />
-        <PhoneTabCells views={views} counts={counts} />
+            they sat a dozen widgets down, where the reference has them near the top. While the
+            Home is being arranged the screen is the list alone, as MobileInicioEditar draws it */}
+        {!editing && (
+          <>
+            <PhoneAssistantRow project={project} />
+            <PhoneTabCells views={views} counts={counts} />
+          </>
+        )}
         <HomeDashboard project={project} editing={editing} onDone={() => setEditing(false)} />
       </>
     );
@@ -291,20 +296,22 @@ function ProjectPage({ project }: { project: Project }) {
 function AllProjectsHome() {
   const { t } = useTranslation('home');
   const [editing, setEditing] = useState(false);
+  // While editing, the edit head takes the hero's place (DesktopInicioEditar), so the title is kept here
+  usePageTitle(t('page.title'));
   return (
     <>
-      <HomeHero
-        project={null}
-        actions={
-          editing ? undefined : (
+      {!editing && (
+        <HomeHero
+          project={null}
+          actions={
             <button type="button" className="btn btn-quiet" onClick={() => setEditing(true)}>
               <Pencil {...ICON_SM} />
               {t('edit.enter')}
             </button>
-          )
-        }
-      />
-      <HomeDashboard project={null} editing={editing} onDone={() => setEditing(false)} />
+          }
+        />
+      )}
+      <HomeDashboard project={null} editing={editing} onDone={() => setEditing(false)} page />
     </>
   );
 }

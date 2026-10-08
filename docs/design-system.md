@@ -1466,6 +1466,12 @@ Drawn for CW-34 (a Home kept per project, with Documents and Flow widgets) by `r
   <project>" and swaps its buttons for **Añadir widget**, **Restablecer** and **Listo**. Listo is the zone's primary action
   but wears `.edit-done` (accent on `--accent-soft`), not the gradient: the logo and the top bar's New chat already are the
   screen's two gradient surfaces. The hero loses its `.grad-text` while editing for the same reason.
+- **The head in the app** (`.home-editbar`: eyebrow, title, the sentence, then the three buttons). On All projects
+  it takes the hero's place, as drawn: the page's `h1` in `.text-display` with the hero's halo. A project's Home keeps
+  the project's own header and tabs above it (they are how the page is reached and the mode belongs to Resumen), so
+  there the same head heads the tab: an `h2` at 24 px. Restablecer is a quiet button with its arrow, disabled while the
+  Home is still the default (there is nothing to reset). On a phone the head is the project's name as eyebrow,
+  "Editar inicio" and Listo as a tall button; the assistant row and the tab cells step aside, and the FAB goes.
 - **Each change saves at once.** There is no Save and no Cancel; Listo only leaves the mode. **Restablecer** returns this
   project's Home to the default layout and answers with a toast, "Inicio restablecido", with **Deshacer**; it never asks
   first, so reset costs one tap and is reversible. The stored layout is the project's own: another project is untouched.
@@ -1518,6 +1524,8 @@ Drawn for CW-34 (a Home kept per project, with Documents and Flow widgets) by `r
 | `.edit-done` | `Button` with a variant | Listo: accent on `--accent-soft`, not the gradient |
 | `.pick-list`, `.pick-row` (`.pick-ico`, `.pick-text`, `.pick-name`, `.pick-desc`, `.pick-sizes`, `.pick-have`) | the picker's body in `Dialog` and `Sheet` | one row per type not yet on the page; rows are 64 px at least on a phone |
 | `.move-row` | new, the phone's edit list | icon, name and three 44 px buttons |
+| the strip of Cifras in edit mode | `.kpi-strip` inside `.widget-edit-body` | one row of three plain cells (no tile borders, no gradient hairline); the top row aligns to the start so Límites keeps its own height |
+| `.doc-row`, `.flow-row` in a widget | scoped as `.widget .doc-row`, `.widget .flow-row` | the Documents and Team pages use the same names for their own rows; the widget's rule is scoped so theirs never reaches the card |
 | `.doc-row`, `.doc-name` | the Documents widget's rows | mono name, folder and author, kind badge, age |
 | `.flow-row` (`.flow-what`) | the Flow widget's rows | live, waiting and returned, in that order |
 

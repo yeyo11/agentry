@@ -392,13 +392,12 @@
     "isFirst": "{{title}} ya es el primero de su grupo",
     "isLast": "{{title}} ya es el último de su grupo",
     "listLabel": "Widgets del inicio",
-    "phoneNote": "En el móvil todos los widgets se apilan en una columna, así que no hay tamaño que elegir.",
-    "pickerTitle": "Añadir un widget",
-    "pickerHint": "Cada widget aparece una sola vez. Se añade al final de su sitio en la página.",
+    "phoneNote": "Cambia el orden con las flechas. Cada cambio se guarda al momento, solo para este proyecto. El tamaño se elige en pantallas anchas.",
+    "pickerTitle": "Añadir widget",
+    "pickerHint": "Se añade al final del inicio de <name>{{name}}</name>. Luego lo mueves donde quieras.",
     "new": "nuevo",
     "have": "Ya están en tu inicio",
     "allAdded": "Todos los widgets ya están en tu inicio.",
-    "close": "Cerrar",
     "announce": {
       "lifted": "{{title}} levantado, posición {{n}} de {{count}}. Usa las flechas para moverlo, Espacio para soltarlo y Escape para cancelar.",
       "moved": "{{title}}, posición {{n}} de {{count}}",
@@ -414,6 +413,13 @@
       "board": "Tablero",
       "documents": "Documentos",
       "memory": "Memoria"
-    }
+    },
+    "heading": "Ordena tu inicio",
+    "lede": "Mueve, cambia de tamaño o quita los widgets. Cada cambio se guarda al momento, solo para este proyecto.",
+    "ledeAll": "Mueve, cambia de tamaño o quita los widgets. Cada cambio se guarda al momento, solo para el inicio de Todos los proyectos.",
+    "phoneNoteAll": "Cambia el orden con las flechas. Cada cambio se guarda al momento, solo para el inicio de Todos los proyectos. El tamaño se elige en pantallas anchas.",
+    "pickerHintAll": "Se añade al final del inicio de Todos los proyectos. Luego lo mueves donde quieras.",
+    "once": "Cada widget aparece una vez",
+    "cancel": "Cancelar"
   }
 }
