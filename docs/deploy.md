@@ -356,7 +356,14 @@ docker rename agentry agentry-old
 # the docker run above, with the three named volumes
 ```
 
-Check that the new one has your chats, then `docker rm -v agentry-old`. A container started with
+Check that the new one has your chats, then `docker rm -v agentry-old`.
+
+**Already replaced it?** `docker rm` without `-v` leaves the anonymous volumes behind, so what the old
+container held may still be on disk. `docker volume ls --filter dangling=true` lists them, 64-digit
+names and all; look inside one with `docker run --rm -v <name>:/v alpine ls /v` (`.claude` holds
+`projects/` and `sessions/`, `/data` holds `wrapper.db`) and copy it into a named volume with
+`docker run --rm -v <name>:/from -v agentry-config:/to alpine cp -a /from/. /to/`. Do not run
+`docker volume prune` before you have looked: it deletes exactly these. A container started with
 `-v agentry-data:/data` alone already has `/data` on a named volume: copy only the other two.
 
 **Compose.** The volumes are `<project>_claude-config` and `<project>_wrapper-data`, where the
