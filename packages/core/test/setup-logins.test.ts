@@ -404,7 +404,7 @@ test('a Tailscale sign-in waits on its login URL with no code, and succeeds once
 });
 
 test('a Tailscale auth key reaches the CLI only through a 0600 file that is gone once the command ended', async () => {
-  const key = 'tskey-auth-kNeverInArgv-0123456789abcdef';
+  const key = 'fake-ts-auth-key-never-in-argv';
   const r = tailscaleRig({ authKey: key });
   const session = await r.logins.start({ tool: 'tailscale', method: 'key', secret: key });
   assert.deepEqual([session.state, session.ready], ['succeeded', true]);
@@ -419,16 +419,16 @@ test('a Tailscale auth key reaches the CLI only through a 0600 file that is gone
   assert.ok(!JSON.stringify(session).includes(key));
 
   // A key the control server refuses is a failure, and its file goes too
-  const bad = tailscaleRig({ authKey: 'tskey-auth-the-right-one' });
-  const refused = await bad.logins.start({ tool: 'tailscale', method: 'key', secret: 'tskey-auth-kBADBADBAD-0000' });
+  const bad = tailscaleRig({ authKey: 'fake-ts-auth-key-the-right-one' });
+  const refused = await bad.logins.start({ tool: 'tailscale', method: 'key', secret: 'fake-ts-auth-key-bad' });
   assert.deepEqual([refused.state, refused.error], ['failed', 'cli-refused']);
   const badArg = bad.calls()[0]?.[3] ?? '';
   assert.equal(existsSync(badArg.slice('--auth-key=file:'.length)), false);
 });
 
 test('Tailscale signs out with logout, after the tunnel had its chance to close', async () => {
-  const r = tailscaleRig({ authKey: 'tskey-auth-ok' });
-  await r.logins.start({ tool: 'tailscale', method: 'key', secret: 'tskey-auth-ok' });
+  const r = tailscaleRig({ authKey: 'fake-ts-auth-key-ok' });
+  await r.logins.start({ tool: 'tailscale', method: 'key', secret: 'fake-ts-auth-key-ok' });
   assert.deepEqual(await r.logins.signOut('tailscale'), { tool: 'tailscale', host: null, signedOut: true, reason: null });
   assert.deepEqual(r.calls().at(-1), ['logout']);
   assert.deepEqual(r.signOuts, ['tailscale']);
@@ -438,7 +438,7 @@ test('Tailscale signs out with logout, after the tunnel had its chance to close'
 test('a Tailscale that belongs to the machine is neither signed in nor out from Agentry', async () => {
   const r = tailscaleRig({ refusal: 'not managed' });
   await assert.rejects(r.logins.start({ tool: 'tailscale', method: 'device' }), (err: Error) => err instanceof LoginRefusedError && (err as LoginRefusedError).statusCode === 409);
-  await assert.rejects(r.logins.start({ tool: 'tailscale', method: 'key', secret: 'tskey-auth-x' }), LoginRefusedError);
+  await assert.rejects(r.logins.start({ tool: 'tailscale', method: 'key', secret: 'fake-ts-auth-key-x' }), LoginRefusedError);
   await assert.rejects(r.logins.signOut('tailscale'), LoginRefusedError);
   assert.deepEqual(r.calls(), [], 'the CLI never ran');
   assert.deepEqual(r.signOuts, []);
