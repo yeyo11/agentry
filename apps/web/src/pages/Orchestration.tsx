@@ -665,8 +665,13 @@ function OrchestrationCard({ orch, energy }: { orch: OrchestrationRecord; energy
 
 export function Orchestration() {
   const { t } = useTranslation(['orchestration', 'config']);
-  const { data, error, isLoading } = useOrchestrations();
+  const { data, error, isLoading: loadingList } = useOrchestrations();
   const { project, projectId, settled } = useProjectScope();
+  // Read for its failure only: without projects the scope never settles, and the list is shown unscoped
+  const projectsFailed = useProjects(false).isError;
+  // A project remembered from last time is only known once the projects are: until then the list
+  // would show every project's orchestrations, then drop to that project's (often to its empty state)
+  const isLoading = loadingList || !(settled || projectsFailed);
   const list = useMemo(() => (data ?? []).filter((orch) => !project || inProject(project, orch.cwd)), [data, project]);
   const listState = useListParams('orchestrations', LIST_PARAMS, settled ? (projectId ?? ALL_PROJECTS) : null);
   const templates = useQuery({ queryKey: keys.orchestrationTemplates, queryFn: api.orchestrationTemplates });
