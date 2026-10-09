@@ -520,9 +520,12 @@ test('stopping the orchestration stops its checks and what they started', async 
   const { db, repo, orchestrator } = fixture();
   const pidFile = join(mkdtempSync(join(tmpdir(), 'agentry-pid-')), 'pid');
   const started = launch(orchestrator, repo, { commands: [`sleep 120 & echo $! > ${pidFile}; wait`], fixer: true, maxAttempts: 2 });
-  await until(() => existsSync(pidFile) && (orchestrator.get(started.id)?.verification?.status === 'running'), 'the check to be running');
+  // The shell creates the file empty before `echo` writes into it, so existing is not enough: an empty
+  // read became pid 0, which alive() reports as gone
+  const written = (): boolean => existsSync(pidFile) && /^\d+\n$/.test(readFileSync(pidFile, 'utf8'));
+  await until(() => written() && orchestrator.get(started.id)?.verification?.status === 'running', 'the check to be running');
   const pid = Number(readFileSync(pidFile, 'utf8').trim());
-  assert.ok(alive(pid));
+  assert.ok(pid > 0 && alive(pid));
 
   orchestrator.stop(started.id);
   await until(() => orchestrator.get(started.id)?.verification?.status === 'failed', 'the checks to end');
