@@ -5,12 +5,20 @@ import { api, keys } from '../../api';
 import { useAgentryEvents, useFeedState } from '../../lib/events';
 import { isLive, newerSession, READINESS_KEYS } from '../../lib/setup';
 
-/** How often a live sign-in is read while the event stream is down; with it open, events carry every move. */
+/** How often a live sign-in is read while the event stream is down. */
 const POLL_WITHOUT_FEED_MS = 3_000;
+/**
+ * With the stream open, events carry every move, but one emitted before the panel knows the
+ * session's id is dropped: the code can be printed between the start's answer and the panel taking
+ * it, and the first read may have come before the code. So a starting session is read every second
+ * and a waiting one every few, which costs a local GET and leaves no missed event to hang on.
+ */
+const POLL_STARTING_MS = 1_000;
+const POLL_WITH_FEED_MS = 5_000;
 
 /**
  * One sign-in from the panel: start it, follow it, cancel it. A device sign-in moves through
- * `login.updated` events, with `GET /setup/logins/:id` as the reading when the stream is down; a key
+ * `login.updated` events, with `GET /setup/logins/:id` read beside them in case one was missed; a key
  * sign-in answers once it ended. When one succeeds, every list that shows readiness is read again,
  * since the row turning ok is the answer the person waits for.
  */
@@ -32,7 +40,7 @@ export function useLogin({ onSucceeded, onCancelled }: { onSucceeded: () => void
     queryKey: keys.setupLogin(session?.id ?? ''),
     queryFn: ({ signal }) => api.login(session?.id ?? '', { signal }),
     enabled: live && session !== null,
-    refetchInterval: feed === 'open' ? false : POLL_WITHOUT_FEED_MS,
+    refetchInterval: session?.state === 'starting' ? POLL_STARTING_MS : feed === 'open' ? POLL_WITH_FEED_MS : POLL_WITHOUT_FEED_MS,
   });
   useEffect(() => {
     if (reading.data) take(reading.data);
