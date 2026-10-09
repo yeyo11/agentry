@@ -13,7 +13,9 @@ import { join } from 'node:path';
 export const fakeCli = true;
 export const timeout = 120_000;
 
-const rowState = (id) => `document.querySelector('.prov-row[data-provider="${id}"], .prov-cell[data-provider="${id}"]')?.getAttribute('data-state') ?? null`;
+// Parenthesised: it is spliced into `a && ${rowState(id)} === 'ready'`, and `??` may not sit unparenthesised
+// beside `&&` (a SyntaxError) nor before `===`, which would bind first and compare `null` instead
+const rowState = (id) => `(document.querySelector('.prov-row[data-provider="${id}"], .prov-cell[data-provider="${id}"]')?.getAttribute('data-state') ?? null)`;
 const onStep = (step) => `return !!document.querySelector('.setup-page[data-setup-step="${step}"]')`;
 
 export default async ({ page, api, check, dirs }) => {
