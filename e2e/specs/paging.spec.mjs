@@ -122,7 +122,7 @@ export default async ({ page, api, check, dirs }) => {
 
     // ---- Keep going up: the first message eventually shows, and the DOM stays small ----
     await page.waitFor(
-      `const main=document.querySelector('.run-scroll');main.scrollTop=0;return document.querySelector('.transcript').innerText.includes('${mark(0)}')`,
+      `const main=document.querySelector('.run-scroll');main.dispatchEvent(new WheelEvent('wheel',{deltaY:-120,bubbles:true}));main.scrollTop=0;return document.querySelector('.transcript').innerText.includes('${mark(0)}')`,
       { timeout: 60000, label: 'the first message after scrolling to the very top' },
     );
     check(!(await page.eval(`return !!(()=>{${earlierButton}})()`)), 'nothing is left to load above the first message');

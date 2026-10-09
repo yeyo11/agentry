@@ -34,9 +34,10 @@ export default async ({ page, api, check, dirs }) => {
   try {
     await page.goto(`/chats/${SESSION}`, 300);
     await page.waitFor(shows(mark(TOTAL - 1)), { label: 'the newest message is rendered' });
-    // Letting go of the end takes the reader's own input: a wheel up, as a person would
+    // Letting go of the end takes the reader's own input: a wheel up, as a person would. Every scroll
+    // up below starts with one too, since one made by nobody is taken back to the end
     await page.eval(`document.querySelector('.run-scroll').dispatchEvent(new WheelEvent('wheel',{deltaY:-120,bubbles:true}));return true`);
-    await page.waitFor(`const main=document.querySelector('.run-scroll');main.scrollTop=0;return !document.querySelector('.transcript-earlier')`, {
+    await page.waitFor(`const main=document.querySelector('.run-scroll');main.dispatchEvent(new WheelEvent('wheel',{deltaY:-120,bubbles:true}));main.scrollTop=0;return !document.querySelector('.transcript-earlier')`, {
       timeout: 120000,
       label: 'everything read back to the first message',
     });
@@ -51,6 +52,12 @@ export default async ({ page, api, check, dirs }) => {
     check(await page.eval(atEnd), 'the transcript is at its end, at once');
     check(await page.eval(shows(mark(TOTAL - 1))), 'and shows the newest message');
     check((await page.eval(`return document.getElementsByTagName('*').length`)) < 3000, 'with a small DOM');
+    // A scroll up that is not the reader's (the list re-anchoring as pages swap, the browser's own
+    // anchoring) does not let go of the end: with every row on screen measured nothing resizes, and
+    // the view used to stay short of the end for good, still following and with no button back
+    await page.eval(`document.querySelector('.run-scroll').scrollTop-=200;return true`);
+    await page.waitFor(atEnd, { label: 'a scroll up nobody made taken back to the end' });
+    check(!(await page.eval(`return !!document.querySelector('.jump-latest')`)), 'and the end is still followed');
 
     // ---- The chat grew past what is held while nobody looked: the next pages are not thrown away ----
     growTranscript(file, SESSION, TOTAL, TOTAL + GROWTH);
@@ -59,9 +66,10 @@ export default async ({ page, api, check, dirs }) => {
     await leaveAndReturn(page);
     // Coming back shows the page held from before at its end until the reads land: being at the end
     // means nothing until the newest message is there too. A wait that still fails says where the
-    // view was, since the case seen once in CI (never at the end for the whole wait) is not reproduced
+    // view was and whether it still followed the end: the case seen once in CI (never at the end for
+    // the whole wait) is the stray scroll checked above, but it was never reproduced here
     await page.waitFor(`return (()=>{${shows(mark(TOTAL + GROWTH - 1))}})() && (()=>{${atEnd}})()`, { label: 'the transcript at its end after the growth' }).catch(async (error) => {
-      const view = await page.eval(`const m=document.querySelector('.run-scroll');return JSON.stringify({scrollTop:m.scrollTop,scrollHeight:m.scrollHeight,clientHeight:m.clientHeight,above:(()=>{${aboveCount}})()})`).catch(() => 'unknown');
+      const view = await page.eval(`const m=document.querySelector('.run-scroll');return JSON.stringify({scrollTop:m.scrollTop,scrollHeight:m.scrollHeight,clientHeight:m.clientHeight,following:!document.querySelector('.jump-latest'),above:(()=>{${aboveCount}})()})`).catch(() => 'unknown');
       throw new Error(`${error.message}; the view: ${view}`);
     });
     check(await page.eval(shows(mark(TOTAL + GROWTH - 1))), 'the newest message after the growth is on screen');
@@ -88,7 +96,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.eval(`document.querySelector('.run-scroll').dispatchEvent(new WheelEvent('wheel',{deltaY:-120,bubbles:true}));return true`);
     await page.waitFor(`const b=(()=>{${earlierButton}})();if(!b)return false;b.click();return true`, { label: 'Load earlier, over the gap' });
     await page.waitFor(`return (()=>{${aboveCount}})()===${grown - 3 * PAGE}`, { label: 'the page reaching into what was held brings all of it back' });
-    await page.waitFor(`const main=document.querySelector('.run-scroll');main.scrollTop=0;return true`, { label: 'to the top of what is held' });
+    await page.waitFor(`const main=document.querySelector('.run-scroll');main.dispatchEvent(new WheelEvent('wheel',{deltaY:-120,bubbles:true}));main.scrollTop=0;return true`, { label: 'to the top of what is held' });
     await page.waitFor(shows(mark(grown - 3 * PAGE)), { label: 'the oldest entry held is on the page' });
     console.log(`  paging-held: ${TOTAL} seeded, ${MAX_HELD} kept across a visit, ${GROWTH} then ${BRIDGE} written behind the reader's back`);
   } finally {
