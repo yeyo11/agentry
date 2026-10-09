@@ -93,7 +93,7 @@ export default async ({ page, api, check, dirs }) => {
     const signIn = await page.eval(`const a = document.querySelector('.prov-row[data-host="github"] [data-action="sign-in"]'); return a ? { tag: a.tagName, pressed: a.getAttribute('aria-pressed') } : null`);
     check(signIn?.tag === 'BUTTON' && signIn.pressed === 'false', `signed out offers Sign in, a button that stays in Agentry (${JSON.stringify(signIn)})`);
     await page.click('.prov-row[data-host="github"] [data-action="sign-in"]', undefined, 300);
-    await page.waitFor(`return !!document.querySelector('.prov-bin.signin')`, { label: 'the sign-in panel under the row' });
+    await page.waitFor(`return !!document.querySelector('.prov-bin.signin-panel')`, { label: 'the sign-in panel under the row' });
     check((await page.eval(`return document.querySelector('.prov-bin.signin-panel [role="radiogroup"]')?.textContent ?? ''`)).includes('Code'), 'gh offers the device code and a key');
     await page.click('.prov-bin.signin-panel .prov-quiet', undefined, 200);
     // The badge is uppercase on screen (innerText), so its word is read from the DOM's own text

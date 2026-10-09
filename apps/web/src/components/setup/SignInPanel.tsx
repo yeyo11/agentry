@@ -37,7 +37,7 @@ export interface SignInPanelProps {
   /** `gh` and `glab`: the host to start with; an empty string asks the person for one */
   host?: string | null;
   /**
-   * `inline` opens under a row (`.prov-bin.signin`), `sheet` fills a Sheet on a phone, and `card`
+   * `inline` opens under a row (`.prov-bin.signin-panel`), `sheet` fills a Sheet on a phone, and `card`
    * stays open on Settings → Account, where it is the form itself and has nothing to close.
    */
   layout?: PanelLayout;
