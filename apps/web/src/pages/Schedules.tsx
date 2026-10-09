@@ -4,7 +4,7 @@ import { Clock, Ellipsis, MessageSquare, Pencil, Play, Plus, ShieldCheck, Trash2
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { api, keys, useScheduleRuns, useSchedules } from '../api';
+import { api, keys, useProjects, useScheduleRuns, useSchedules } from '../api';
 import { Collapsible, Sheet, Switch, Tooltip } from '@agentry/ui/components/controls';
 import { useConfirm } from '@agentry/ui/components/Dialog';
 import { ICON, ICON_SM } from '@agentry/ui/components/icons';
@@ -43,7 +43,12 @@ export function Schedules() {
   const { t } = useTranslation(['schedules', 'common']);
   const schedules = useSchedules();
   const { project, projectId, settled } = useProjectScope();
-  const { params, patch, reset } = useListParams('schedules', LIST_PARAMS, settled ? (projectId ?? ALL_PROJECTS) : null);
+  // Read for its failure only: without projects the scope never settles, and the list is shown unscoped
+  const projectsFailed = useProjects(false).isError;
+  // A project remembered from last time is only known once the projects are: until then the list
+  // would show every project's schedules, then drop to that project's (often to its empty state)
+  const scopeKnown = settled || projectsFailed;
+  const { params, patch, reset } = useListParams('schedules', LIST_PARAMS, scopeKnown ? (projectId ?? ALL_PROJECTS) : null);
   const search = params.get('q') ?? '';
   const view = VIEWS.find((v) => v === params.get('view')) ?? 'all';
   const all = useMemo(
@@ -85,7 +90,7 @@ export function Schedules() {
         }
       />
       <ErrorBox error={schedules.error} />
-      {schedules.isPending ? (
+      {schedules.isPending || !scopeKnown ? (
         <Skeleton rows={3} height={64} />
       ) : all.length === 0 ? (
         <section className="card glow-top schedules-empty">
