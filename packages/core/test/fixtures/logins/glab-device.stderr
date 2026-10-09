@@ -1,0 +1,12 @@
+WARNING: The operating system keyring is unavailable. Storing credentials as plaintext in the configuration file.
+- Signing into gitlab.com
+
+First copy your one-time code: WZS9BFLC
+Then open this URL on any device to authorize: https://gitlab.com/oauth/device
+
+Waiting for authorization...
+          
+   ERROR  
+          
+  The command execution has been interrupted.                                                                         
+

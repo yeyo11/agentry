@@ -5754,6 +5754,9 @@
       },
       {
         "$ref": "#/components/schemas/WebhookChangedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/LoginUpdatedEvent"
       }
     ],
     "description": "Everything the buffered feed carries, discriminated by `type`."
@@ -9608,9 +9611,9 @@
         "$ref": "#/components/schemas/PermissionMode",
         "description": "The `--permission-mode` of a run that does not ask for one; applies to the next run"
       },
-      "providersStepSeen": {
+      "setupSeen": {
         "type": "boolean",
-        "description": "The first-run Providers step was shown and answered (continued or skipped). Kept here rather than in the browser so a second browser, a phone or the desktop app does not ask again; the step still returns whenever no provider is ready."
+        "description": "The setup assistant was finished or skipped. Kept here rather than in the browser so a second browser, a phone or the desktop app does not ask again. It replaces `providersStepSeen`: that stored value and its variable, `AGENTRY_PROVIDERS_STEP_SEEN`, still count."
       },
       "sources": {
         "type": "object",
@@ -9624,7 +9627,7 @@
           "defaultPermissionMode": {
             "$ref": "#/components/schemas/AppSettingSource"
           },
-          "providersStepSeen": {
+          "setupSeen": {
             "$ref": "#/components/schemas/AppSettingSource"
           }
         },
@@ -9632,7 +9635,7 @@
           "allowedHosts",
           "maxConcurrentRuns",
           "defaultPermissionMode",
-          "providersStepSeen"
+          "setupSeen"
         ],
         "description": "For `allowedHosts`, the highest layer that names any host (`env`, then `file`, then `default`); it does not make the list read-only, `allowedHostLayers` does that per host."
       },
@@ -9645,7 +9648,7 @@
       "allowedHosts",
       "defaultPermissionMode",
       "maxConcurrentRuns",
-      "providersStepSeen",
+      "setupSeen",
       "sources"
     ],
     "description": "`GET /settings/app`: every layered setting, and where each one's value comes from."
@@ -9851,7 +9854,11 @@
       },
       "enabled": {
         "type": "boolean",
-        "description": "Whether this deploy offers the tunnel at all (`AGENTRY_TUNNEL`). Off by default in the Docker image and the Helm chart: the container sees neither the host's `tailscale` CLI nor its daemon, and a way in that goes around the operator's published port and proxy is the operator's call. While false, `start` is refused and the UI says who can turn it on instead of offering a button"
+        "description": "Whether this deploy offers the tunnel at all (`AGENTRY_TUNNEL`, on by default). While false, `start` is refused and the UI says who can turn it on instead of offering a button"
+      },
+      "managed": {
+        "type": "boolean",
+        "description": "Whether the `tailscaled` behind the CLI is Agentry's own: the one the Docker image starts in userspace networking, with its state on the data volume (`AGENTRY_TAILSCALE_MANAGED`). Only then does the app sign it in and out (`POST /setup/logins` with `tool: 'tailscale'`); a machine's own Tailscale is the person's, and the UI says what to run instead"
       },
       "tailscale": {
         "$ref": "#/components/schemas/TailscaleReadiness",
@@ -9871,6 +9878,7 @@
       "since",
       "reason",
       "enabled",
+      "managed",
       "tailscale",
       "port",
       "settings"
@@ -9960,7 +9968,7 @@
       "httpsDisabled",
       "ready"
     ],
-    "description": "Whether this machine's Tailscale can carry the tunnel. The whole Remote access section depends on it, so each way it is not ready is its own state, with a reason the UI explains:\n\n- `missing`: no `tailscale` CLI to run;\n- `unsupported`: a CLI older than 1.52, whose `serve` takes other arguments;\n- `daemonDown`: the CLI is there but `tailscaled` does not answer it;\n- `loggedOut`: the node is not signed in to a tailnet (`NeedsLogin`, `NeedsMachineAuth`);\n- `stopped`: signed in but not connected (`Stopped`, or any state other than `Running`);\n- `httpsDisabled`: MagicDNS or HTTPS certificates are off for the tailnet, so Serve has no   `https://<node>.<tailnet>.ts.net` to answer on;\n- `ready`: Serve can be used.\n\nAgentry never signs in, starts or configures Tailscale itself: it says what to run."
+    "description": "Whether this machine's Tailscale can carry the tunnel. The whole Remote access section depends on it, so each way it is not ready is its own state, with a reason the UI explains:\n\n- `missing`: no `tailscale` CLI to run;\n- `unsupported`: a CLI older than 1.52, whose `serve` takes other arguments;\n- `daemonDown`: the CLI is there but `tailscaled` does not answer it;\n- `loggedOut`: the node is not signed in to a tailnet (`NeedsLogin`, `NeedsMachineAuth`);\n- `stopped`: signed in but not connected (`Stopped`, or any state other than `Running`);\n- `httpsDisabled`: MagicDNS or HTTPS certificates are off for the tailnet, so Serve has no   `https://<node>.<tailnet>.ts.net` to answer on;\n- `ready`: Serve can be used.\n\nA Tailscale that belongs to the machine (a source checkout, the desktop app) is never signed in, started or configured by Agentry: it says what to run. Only the `tailscaled` the Docker image starts for Agentry (`TunnelStatus.managed`) is signed in and out from the app (docs/setup.md)."
   },
   "TunnelSettings": {
     "type": "object",
@@ -10134,6 +10142,166 @@
       "status"
     ],
     "description": "What the host last answered when it delivered to the hook, as it reports it."
+  },
+  "LoginUpdatedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "login.updated"
+      },
+      "login": {
+        "$ref": "#/components/schemas/LoginSession"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "login",
+      "title",
+      "type"
+    ],
+    "description": "A sign-in moved: it started, showed its code, or ended. Carries the URL and the code and never anything else the CLI printed."
+  },
+  "LoginSession": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "tool": {
+        "$ref": "#/components/schemas/SetupTool"
+      },
+      "method": {
+        "$ref": "#/components/schemas/LoginMethod"
+      },
+      "host": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The host or address it signs in to; null for an agent"
+      },
+      "state": {
+        "$ref": "#/components/schemas/LoginState"
+      },
+      "url": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The page the person opens, for a device sign-in once the CLI printed it"
+      },
+      "code": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The code the person types there. Null for Tailscale, whose login URL is the whole sign-in: the person opens it and approves, with nothing to type"
+      },
+      "startedAt": {
+        "type": "string"
+      },
+      "expiresAt": {
+        "type": "string",
+        "description": "When a live sign-in stops waiting: 15 minutes after it started"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Set once it ended"
+      },
+      "error": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/LoginErrorCode"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "ready": {
+        "type": [
+          "boolean",
+          "null"
+        ],
+        "description": "What the tool's readiness said once the sign-in ended: true signed in, false not, null when the vendor offers no probe (Gemini) or it was not read"
+      }
+    },
+    "required": [
+      "id",
+      "tool",
+      "method",
+      "host",
+      "state",
+      "url",
+      "code",
+      "startedAt",
+      "expiresAt",
+      "endedAt",
+      "error",
+      "ready"
+    ],
+    "description": "One sign-in, as `POST /setup/logins` started it. Never carries the key or anything else the CLI printed."
+  },
+  "SetupTool": {
+    "type": "string",
+    "enum": [
+      "claude-code",
+      "codex",
+      "gemini",
+      "copilot",
+      "opencode",
+      "gh",
+      "glab",
+      "youtrack",
+      "tailscale"
+    ]
+  },
+  "LoginMethod": {
+    "type": "string",
+    "enum": [
+      "key",
+      "device"
+    ],
+    "description": "`key`: a key or token the person pastes. `device`: the vendor's device-code sign-in, where the person opens a URL on their own device and types the code Agentry shows."
+  },
+  "LoginState": {
+    "type": "string",
+    "enum": [
+      "starting",
+      "waiting-for-person",
+      "succeeded",
+      "failed",
+      "expired",
+      "cancelled"
+    ]
+  },
+  "LoginErrorCode": {
+    "type": "string",
+    "enum": [
+      "cli-missing",
+      "spawn-failed",
+      "cli-refused",
+      "no-code",
+      "not-signed-in",
+      "timeout"
+    ],
+    "description": "Why a sign-in failed, as a code and never as what the CLI printed. `cli-missing`: the tool's binary was not found. `spawn-failed`: it could not be started. `cli-refused`: the CLI exited with an error. `no-code`: a device sign-in ended before it showed a URL and a code. `not-signed-in`: the command finished but the tool's readiness still says signed out. `timeout`: a key login did not finish in time and was stopped."
   },
   "StreamHelloEvent": {
     "type": "object",
@@ -13737,6 +13905,70 @@
       "updateAvailable"
     ],
     "description": "Which Claude Code the wrapper runs and whether a newer one exists. The check costs a registry read, so it happens on demand or once a day, never on a page load: `checkedAt` says how old the answer is."
+  },
+  "StorageReport": {
+    "type": "object",
+    "properties": {
+      "distribution": {
+        "$ref": "#/components/schemas/AgentryDistribution"
+      },
+      "checked": {
+        "type": "boolean",
+        "description": "Only a container can lose its folders to a recreate; elsewhere the list is empty"
+      },
+      "locations": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/StorageLocation"
+        }
+      },
+      "atRisk": {
+        "type": "boolean",
+        "description": "At least one folder will not survive replacing the container"
+      }
+    },
+    "required": [
+      "distribution",
+      "checked",
+      "locations",
+      "atRisk"
+    ]
+  },
+  "StorageLocation": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "enum": [
+          "config",
+          "data",
+          "workspace"
+        ],
+        "description": "`config` is the Claude config dir (`~/.claude`), `data` the wrapper's state, `workspace` the projects"
+      },
+      "path": {
+        "type": "string"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/StorageKind"
+      }
+    },
+    "required": [
+      "id",
+      "path",
+      "kind"
+    ]
+  },
+  "StorageKind": {
+    "type": "string",
+    "enum": [
+      "persistent",
+      "anonymous",
+      "container",
+      "temporary",
+      "unknown"
+    ],
+    "description": "What a folder of the server sits on, read from the mounts the process sees. `persistent` is a named volume, a bind mount or an orchestrator's claim: it outlives the container. The other three do not: `anonymous` is a volume Docker made on its own (the image declares `VOLUME`, the command did not name one), which the next `docker run` replaces with an empty one; `container` is the container's own layer; `temporary` is memory or an emptyDir. `unknown` is a mount table that could not be read or told apart."
   },
   "ProjectSettings": {
     "type": "object",
@@ -19347,9 +19579,9 @@
         "$ref": "#/components/schemas/PermissionMode",
         "description": "The `--permission-mode` of a run that does not ask for one; applies to the next run"
       },
-      "providersStepSeen": {
+      "setupSeen": {
         "type": "boolean",
-        "description": "The first-run Providers step was shown and answered (continued or skipped). Kept here rather than in the browser so a second browser, a phone or the desktop app does not ask again; the step still returns whenever no provider is ready."
+        "description": "The setup assistant was finished or skipped. Kept here rather than in the browser so a second browser, a phone or the desktop app does not ask again. It replaces `providersStepSeen`: that stored value and its variable, `AGENTRY_PROVIDERS_STEP_SEEN`, still count."
       }
     },
     "description": "`PUT /settings/app`: the settings to change, and only those. A setting the environment set is refused rather than written to the file, where it would do nothing until the variable goes away and then change behaviour by surprise. `allowedHosts` is the exception: it replaces the UI's hosts, which add to the environment's, so it is accepted whatever the environment says."
@@ -20227,6 +20459,390 @@
       "host"
     ],
     "description": "`PUT /trackers/youtrack/credentials`: the token may be left out to keep the saved one."
+  },
+  "SetupState": {
+    "type": "object",
+    "properties": {
+      "seen": {
+        "type": "boolean",
+        "description": "The setup assistant was finished or skipped (`setupSeen` in the app settings)"
+      },
+      "access": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/AuthMode"
+          },
+          "tokenSet": {
+            "type": "boolean"
+          },
+          "readOnly": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "mode",
+          "tokenSet",
+          "readOnly"
+        ]
+      },
+      "providers": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/SetupProviderSummary"
+        }
+      },
+      "hosts": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/SetupHostSummary"
+        }
+      },
+      "youtrack": {
+        "type": "object",
+        "properties": {
+          "configured": {
+            "type": "boolean"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrackerState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrackerReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "configured",
+          "state",
+          "reason"
+        ]
+      },
+      "tailscale": {
+        "$ref": "#/components/schemas/SetupTailscaleSummary"
+      },
+      "methods": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/SetupToolMethods"
+        }
+      },
+      "secrets": {
+        "$ref": "#/components/schemas/SecretStorageStatus"
+      }
+    },
+    "required": [
+      "seen",
+      "access",
+      "providers",
+      "hosts",
+      "youtrack",
+      "tailscale",
+      "methods",
+      "secrets"
+    ],
+    "description": "`GET /setup`: what the first setup has done and what it has not."
+  },
+  "SetupProviderSummary": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "$ref": "#/components/schemas/ProviderId"
+      },
+      "label": {
+        "type": "string"
+      },
+      "state": {
+        "$ref": "#/components/schemas/ProviderReadinessState"
+      },
+      "reason": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ProviderReasonCode"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "account": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "keyStored": {
+        "type": "boolean",
+        "description": "A key Agentry keeps for it in the vault (Claude Code, Gemini, OpenCode)"
+      }
+    },
+    "required": [
+      "id",
+      "label",
+      "state",
+      "reason",
+      "account",
+      "keyStored"
+    ],
+    "description": "One enabled agent in the setup state."
+  },
+  "SetupHostSummary": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "$ref": "#/components/schemas/CodeHostId"
+      },
+      "cli": {
+        "type": "string",
+        "enum": [
+          "gh",
+          "glab"
+        ]
+      },
+      "state": {
+        "$ref": "#/components/schemas/CodeHostState"
+      },
+      "reason": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/CodeHostReason"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "hosts": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/CodeHostHostEntry"
+        }
+      }
+    },
+    "required": [
+      "id",
+      "cli",
+      "state",
+      "reason",
+      "hosts"
+    ],
+    "description": "One code host's CLI in the setup state."
+  },
+  "SetupTailscaleSummary": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean",
+        "description": "This deploy offers the tunnel (`AGENTRY_TUNNEL`)"
+      },
+      "managed": {
+        "type": "boolean",
+        "description": "Agentry runs this `tailscaled` (the Docker image), so it signs it in and out"
+      },
+      "state": {
+        "$ref": "#/components/schemas/TailscaleReadinessState"
+      },
+      "host": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The node's MagicDNS name once it has one"
+      }
+    },
+    "required": [
+      "enabled",
+      "managed",
+      "state",
+      "host"
+    ],
+    "description": "The Tailscale behind Remote access, in the setup state. The setup offers its sign-in only while `managed`: elsewhere it shows the state and what to run."
+  },
+  "SetupToolMethods": {
+    "type": "object",
+    "properties": {
+      "tool": {
+        "$ref": "#/components/schemas/SetupTool"
+      },
+      "key": {
+        "type": "string",
+        "enum": [
+          "env",
+          "stdin",
+          "file"
+        ],
+        "description": "How a key reaches the tool. `env`: Agentry keeps it sealed and hands it to that CLI's processes in their environment. `stdin`: it is given once to the CLI's own login command, which stores it. `file`: the same, through a file of mode 0600 the command is pointed at and that is removed once it ended (Tailscale's `--auth-key=file:<path>`, the only way its CLI takes a key outside argv)."
+      },
+      "variables": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "For `env`, the variables the key may go in; the first is the default. Empty for `stdin`."
+      },
+      "exclusive": {
+        "type": "boolean",
+        "description": "For `env`: only one of `variables` may be set at a time (Claude Code would otherwise pick for us)"
+      },
+      "device": {
+        "type": "boolean",
+        "description": "Whether the vendor documents a device-code sign-in Agentry runs"
+      },
+      "deviceVia": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "tool": {
+                "$ref": "#/components/schemas/SetupTool"
+              },
+              "host": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "tool",
+              "host"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The device sign-in is another tool's: Copilot's Code signs the GitHub CLI in to github.com, whose token Copilot falls back to (GitHub's documented order). `POST /setup/logins` with the tool's `device` starts that tool's session, and the session names it. Null for every other tool."
+      },
+      "needsHost": {
+        "type": "boolean",
+        "description": "Whether a host name is part of the sign-in: `gh` and `glab` name one, YouTrack an address"
+      },
+      "defaultHost": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The host used when none is given (`github.com`, `gitlab.com`); null where there is none"
+      },
+      "signOut": {
+        "type": "boolean",
+        "description": "False where there is no way to sign out from a program"
+      },
+      "signOutKeyOnly": {
+        "type": "boolean",
+        "description": "Signing out only forgets the key Agentry keeps (Gemini, OpenCode, Copilot), so it is offered only while one is kept: Copilot's own sign-in, or the GitHub CLI's it falls back to, is not Agentry's to undo."
+      }
+    },
+    "required": [
+      "tool",
+      "key",
+      "variables",
+      "exclusive",
+      "device",
+      "deviceVia",
+      "needsHost",
+      "defaultHost",
+      "signOut",
+      "signOutKeyOnly"
+    ],
+    "description": "What one tool offers, from a static table written from each vendor's documentation (docs/setup.md)."
+  },
+  "SecretStorageStatus": {
+    "type": "object",
+    "properties": {
+      "sealed": {
+        "type": "boolean",
+        "description": "Values are encrypted on disk; false only where there is no key (a desktop app without a keyring, or a source install)"
+      },
+      "keyBeside": {
+        "type": "boolean",
+        "description": "The key sits in the data directory beside what it seals (the Docker image without `AGENTRY_SECRET_KEY`): it protects a copy of the files, not the volume. Passing the key through the environment is the recommended setup."
+      }
+    },
+    "required": [
+      "sealed",
+      "keyBeside"
+    ],
+    "description": "How Agentry keeps the secrets it hands a CLI through its environment."
+  },
+  "StartLoginRequest": {
+    "type": "object",
+    "properties": {
+      "tool": {
+        "$ref": "#/components/schemas/SetupTool"
+      },
+      "method": {
+        "$ref": "#/components/schemas/LoginMethod"
+      },
+      "host": {
+        "type": "string",
+        "description": "`gh` and `glab`: the host name (their default when absent). YouTrack: the instance address (required)."
+      },
+      "secret": {
+        "type": "string",
+        "description": "The key or token, for `key`; write-only"
+      },
+      "variable": {
+        "type": "string",
+        "description": "For a tool that takes the key in one of several variables (Claude Code, OpenCode): which one"
+      }
+    },
+    "required": [
+      "tool",
+      "method"
+    ],
+    "description": "`POST /setup/logins`"
+  },
+  "SignOutResult": {
+    "type": "object",
+    "properties": {
+      "tool": {
+        "$ref": "#/components/schemas/SetupTool"
+      },
+      "host": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "signedOut": {
+        "type": "boolean"
+      },
+      "reason": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "unsupported",
+          "cli-refused",
+          "cli-missing",
+          null
+        ],
+        "description": "`unsupported`: the vendor documents no sign-out command (Copilot). `cli-refused`/`cli-missing`: the command failed or is not there."
+      }
+    },
+    "required": [
+      "tool",
+      "host",
+      "signedOut",
+      "reason"
+    ],
+    "description": "`DELETE /setup/credentials/:tool`: whether the tool was signed out, or why it cannot be from here."
   },
   "TrackerIssuesPage": {
     "type": "object",

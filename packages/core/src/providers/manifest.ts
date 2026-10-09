@@ -70,6 +70,18 @@ export interface ProviderManifest {
     probe: ProviderAuthProbe;
     /** Environment variables that supply credentials without a login */
     credentialEnv: string[];
+    /**
+     * A variable of `credentialEnv` reads as signed in, not as unknowable: the vendor documents it
+     * as the sign-in for programs and containers (Copilot). Without it, a variable with no state
+     * file reads `no-probe`, since nothing that costs nothing says whether it is valid.
+     */
+    credentialEnvSignsIn?: boolean;
+    /**
+     * The GitHub CLI's sign-in to this host is the CLI's last documented credential source (Copilot
+     * runs `gh auth token`). Detection runs the same command, with a timeout, and reads only its exit
+     * code and whether it printed anything: the token itself is never kept.
+     */
+    ghFallback?: { hostname: string };
     /** The vendor's sign-in page, or its docs on signing in */
     signInUrl: string;
   };

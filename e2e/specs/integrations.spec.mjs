@@ -86,12 +86,16 @@ export default async ({ page, api, check, dirs }) => {
     await theme(page, 'dark');
     await page.goto('/settings?tab=integrations', 300);
 
-    // ---- Signed out: the remedy is a link to the vendor's page, never a command ----
+    // ---- Signed out: the remedy is the sign-in panel inside Agentry, never a command ----
     state('gh', { signedIn: false });
     await checkAgain();
     await page.waitFor(stateIs('github', 'signed-out'), { label: 'gh signed out after Check again' });
-    const signIn = await page.eval(`const a = document.querySelector('.prov-row[data-host="github"] [data-action="sign-in"]'); return a ? { href: a.getAttribute('href'), target: a.getAttribute('target'), tag: a.tagName } : null`);
-    check(signIn?.tag === 'A' && signIn.href === 'https://cli.github.com/manual/gh_auth_login' && signIn.target === '_blank', `signed out offers a link to how to sign in (${JSON.stringify(signIn)})`);
+    const signIn = await page.eval(`const a = document.querySelector('.prov-row[data-host="github"] [data-action="sign-in"]'); return a ? { tag: a.tagName, pressed: a.getAttribute('aria-pressed') } : null`);
+    check(signIn?.tag === 'BUTTON' && signIn.pressed === 'false', `signed out offers Sign in, a button that stays in Agentry (${JSON.stringify(signIn)})`);
+    await page.click('.prov-row[data-host="github"] [data-action="sign-in"]', undefined, 300);
+    await page.waitFor(`return !!document.querySelector('.prov-bin.signin-panel')`, { label: 'the sign-in panel under the row' });
+    check((await page.eval(`return document.querySelector('.prov-bin.signin-panel [role="radiogroup"]')?.textContent ?? ''`)).includes('Code'), 'gh offers the device code and a key');
+    await page.click('.prov-bin.signin-panel .prov-quiet', undefined, 200);
     // The badge is uppercase on screen (innerText), so its word is read from the DOM's own text
     const word = await page.eval(`return document.querySelector('.prov-row[data-host="github"] .prov-state .badge-text')?.textContent ?? ''`);
     check(word === 'Signed out', `the state carries its word (${word})`);

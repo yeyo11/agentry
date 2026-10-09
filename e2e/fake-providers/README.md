@@ -5,7 +5,10 @@ agent installed, and the suite never depends on a real one. They are **not** on 
 `claude` specs are unchanged: `e2e/run.mjs` seeds `providers.json` so Codex uses the `codex` here,
 and a spec points another provider at `copilot`, `gemini` or `opencode` with the binary override in
 Settings → Providers. Each answers `--version`; `codex login status` answers too (the only provider
-with an auth probe that costs nothing).
+with an auth probe that costs nothing). `codex login --device-auth` prints the recorded device-code
+output (`packages/core/test/fixtures/logins/codex-device-auth.stdout`), waits until the spec writes
+`$AGENTRY_DATA_DIR/fake-providers/codex.approve` (a minute at most), and then signs in; `logout`
+signs out. Both write the state file below.
 
 Started the way a manifest's `launch` starts the real one, each speaks its protocol, replaying the
 recordings (`packages/core/test/fixtures/recordings`) through the fakes the core tests use:

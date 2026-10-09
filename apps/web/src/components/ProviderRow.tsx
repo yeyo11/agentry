@@ -1,6 +1,6 @@
 import type { ProviderStatus } from '@agentry/shared';
 import { ExternalLink, RefreshCw } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import {
@@ -37,6 +37,17 @@ export interface ProviderRowProps {
   onRetry?: () => void;
   /** Opens the binary override; without it "Choose binary" is not offered */
   onChooseBinary?: () => void;
+  /**
+   * Opens the sign-in panel (components/setup) under the row or in a Sheet. Without it, Sign in is
+   * the vendor's page, or Settings → Account for Claude Code.
+   */
+  onSignIn?: () => void;
+  /** A panel is open under the row (the sign-in or the binary): the row joins it */
+  open?: boolean;
+  /** Sign out, for a row that is signed in and whose vendor documents a way out */
+  signOut?: ReactNode;
+  /** Sign in where the state alone gives no such action (`no-probe` with no key kept) */
+  offerSignIn?: boolean;
 }
 
 /** The plain-words reason under the state: a code the detector gave, or what ready means. */
@@ -79,6 +90,10 @@ export function ProviderRow({
   limit,
   onRetry,
   onChooseBinary,
+  onSignIn,
+  open = false,
+  signOut,
+  offerSignIn = false,
 }: ProviderRowProps) {
   const { t } = useTranslation('providers');
   const reason = useProviderReason(status, enabled);
@@ -112,10 +127,13 @@ export function ProviderRow({
     </div>
   );
 
-  const actions = checking || !enabled ? [] : actionsFor(status.state, status.reason);
+  const stateActions = checking || !enabled ? [] : actionsFor(status.state, status.reason);
+  const actions: ProviderAction[] =
+    offerSignIn && !checking && enabled && !stateActions.some((a) => a.kind === 'sign-in') ? [{ kind: 'sign-in', primary: true }, ...stateActions] : stateActions;
   const buttons = actions.map((action) => (
-    <ActionButton key={action.kind} action={action} status={status} onRetry={onRetry} onChooseBinary={onChooseBinary} />
+    <ActionButton key={action.kind} action={action} status={status} open={open} onRetry={onRetry} onChooseBinary={onChooseBinary} onSignIn={onSignIn} />
   ));
+  if (signOut && !checking && enabled) buttons.push(<Fragment key="sign-out">{signOut}</Fragment>);
 
   if (variant === 'cell') {
     return (
@@ -131,7 +149,7 @@ export function ProviderRow({
     );
   }
   return (
-    <div className={`prov-row${compact ? ' compact' : ''}`} data-provider={status.id} data-state={shown}>
+    <div className={`prov-row${compact ? ' compact' : ''}${open ? ' open' : ''}`} data-provider={status.id} data-state={shown}>
       {!compact && (leading ?? <span />)}
       <ProgramMark id={status.id} label={status.label} />
       {identity}
@@ -147,15 +165,20 @@ const cls = (action: ProviderAction) => (action.primary ? 'btn' : 'btn prov-quie
 function ActionButton({
   action,
   status,
+  open,
   onRetry,
   onChooseBinary,
+  onSignIn,
 }: {
   action: ProviderAction;
   status: ProviderStatus;
+  open: boolean;
   onRetry: ProviderRowProps['onRetry'];
   onChooseBinary: ProviderRowProps['onChooseBinary'];
+  onSignIn: ProviderRowProps['onSignIn'];
 }) {
   const { t } = useTranslation('providers');
+  const { t: tSetup } = useTranslation('setup');
   const external = (href: string, label: string) => (
     <a className={cls(action)} href={href} target="_blank" rel="noopener noreferrer" data-action={action.kind}>
       {label}
@@ -165,7 +188,22 @@ function ActionButton({
   );
   switch (action.kind) {
     case 'sign-in': {
-      // Claude Code signs in inside Agentry; the others on their vendor's page
+      // The panel signs in inside Agentry, with nothing that opens elsewhere; without one, Claude
+      // Code goes to Settings → Account and the others to their vendor's page
+      if (onSignIn) {
+        return (
+          <button
+            type="button"
+            className={cls(action)}
+            data-action="sign-in"
+            aria-pressed={open}
+            aria-label={tSetup('row.signInAria', { label: status.label })}
+            onClick={onSignIn}
+          >
+            {t('row.signIn')}
+          </button>
+        );
+      }
       if (status.id === CLAUDE_CODE_ID) {
         return (
           <Link className={cls(action)} to={SIGN_IN_SETTINGS_PATH} data-action="sign-in">

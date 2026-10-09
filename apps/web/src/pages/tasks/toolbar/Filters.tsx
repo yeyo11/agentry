@@ -6,7 +6,7 @@ import { LAYER_ATTR } from '@agentry/ui/components/controls/layer';
 import { Sheet } from '@agentry/ui/components/controls/Sheet';
 import { Checkbox } from '@agentry/ui/components/controls/Toggle';
 import { ICON_SM } from '@agentry/ui/components/icons';
-import type { TaskFilters } from '../../../lib/work-items';
+import { searchBoxText, type TaskFilters } from '../../../lib/work-items';
 import type { TaskFilterState } from './useTaskFilters';
 
 export interface FacetOption {
@@ -54,12 +54,20 @@ export function SearchField({ state, short = false }: { state: TaskFilterState; 
   const input = useRef<HTMLInputElement>(null);
   const { set } = state;
   const q = state.filters.q ?? '';
+  // The last `q` this box wrote, or the address's latest one: what tells its own write coming back
+  // from a change made elsewhere
+  const sent = useRef(q);
 
-  // The address wins when it changes from elsewhere (a link, the back button, "Clear all")
-  useEffect(() => setText(q), [q]);
+  useEffect(() => {
+    setText((current) => searchBoxText(current, q, sent.current));
+    sent.current = q;
+  }, [q]);
   useEffect(() => {
     if (text.trim() === q) return;
-    const timer = window.setTimeout(() => set({ q: text.trim() || undefined }), 250);
+    const timer = window.setTimeout(() => {
+      sent.current = text.trim();
+      set({ q: text.trim() || undefined });
+    }, 250);
     return () => window.clearTimeout(timer);
   }, [text, q, set]);
 

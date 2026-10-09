@@ -43,9 +43,11 @@ export const MILESTONES_PATH = '/tasks/milestones';
 export const NEW_PROJECT_PATH = '/projects/new';
 /**
  * `?new=1` on Tasks opens the New task form (a dialog on a desktop, a full screen on a phone); the
- * command palette and the phone's FAB lead here. `?new=1&status=todo` preselects its column.
+ * command palette and the phone's FAB lead here. `?new=1&column=todo` preselects its column: not
+ * `status`, which is the board's status filter.
  */
 export const NEW_TASK_PARAM = 'new';
+export const NEW_TASK_COLUMN_PARAM = 'column';
 export const NEW_TASK_PATH = `${TASKS_PATH}?${NEW_TASK_PARAM}=1`;
 
 /**
@@ -257,6 +259,28 @@ export function filtersToSearch(filters: TaskFilters, base: URLSearchParams = ne
     else next.delete(param);
   }
   return next;
+}
+
+/**
+ * The address parameters a change to the filters sets (`null` clears one), and only those: the
+ * others, taken from the render the change was made in, would undo a reset or a change made before a
+ * call from an effect (the board dropping a stray epic) runs.
+ */
+export function filterChanges(change: Partial<TaskFilters>): Record<string, string | null> {
+  const next = filtersToSearch(change);
+  const fields = Object.keys(change) as Array<keyof TaskFilters>;
+  return Object.fromEntries(fields.map((field) => [FILTER_PARAMS[field], next.get(FILTER_PARAMS[field])]));
+}
+
+/**
+ * What the search box shows once the address's `q` changes. The box writes `q` a moment after the
+ * typing stops, so by the time that `q` comes back the person may have typed on ("fix " while `fix`
+ * was being written, or a key pressed between that render and its effect): a `q` the box sent itself,
+ * or one that reads the same as the text, keeps the text. Any other `q` came from elsewhere (a link,
+ * Back, "Clear all") and replaces it.
+ */
+export function searchBoxText(current: string, q: string, sent: string): string {
+  return q === sent || current.trim() === q ? current : q;
 }
 
 /** What the API is asked for; `projects` stays behind for {@link inProjects}. */

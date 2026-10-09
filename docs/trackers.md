@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-02T12:00:00Z
-updated_at: 2026-10-07T12:00:00Z
+updated_at: 2026-10-08T21:00:00Z
 tags:
     - trackers
     - issues
@@ -36,9 +36,11 @@ installed by the person with npm), with `rest request --path`, which calls YouTr
 REST API. It is the one tracker with a CLI of its own and credentials Agentry keeps:
 
 - **The address and the token** are saved in Settings → Integrations, on YouTrack's row ("Connect",
-  later "Change access"), in `youtrack-credentials.json`: a 0600 file, the token sealed with the
-  desktop app's key (`SecretBox`) and plain on a server, as [code hosts decision
-  3](plans/code-hosts.md#decisions-for-the-owner) says; the screen says which. The token is
+  later "Change access"), or through the setup's sign-in (`POST /setup/logins`), in the secret
+  vault under `youtrack` (`secrets.json`, 0600, sealed when there is a key: the desktop app's, one
+  passed in `AGENTRY_SECRET_KEY`, or the one the Docker image makes beside the data; see
+  [setup.md](setup.md)); the screen says which. An older `youtrack-credentials.json` is moved into
+  the vault on start and removed. The token is
   write-only: no route answers it, the field never shows it, and left empty it keeps the saved one.
   It reaches `youtrack-app` only in the child's environment (`YOUTRACK_HOST`, `YOUTRACK_TOKEN`;
   `YOUTRACK_API_TOKEN` is removed), never in argv. `trackers/youtrack/credentials.ts`.
@@ -91,7 +93,7 @@ it (`e2e/fake-trackers/youtrack-app`).
   to a tracker status; a missing column is not synced. GitHub and GitLab have a single status, so
   only `done` does anything (it closes the issue as completed); the other two are accepted and write
   nothing. YouTrack writes every mapped column (see [YouTrack](#youtrack)).
-- **`youtrack-credentials.json`**: YouTrack's address and token, see above.
+- **`secrets.json`**, the `youtrack` entry: YouTrack's address and token, see above.
 - **`work_item_issues`** (SQLite, appended last in `packages/core/src/db.ts`): one row per link of
   an issue to an item, unique on `(project_id, tracker, scope, key)`, with the state last read,
   `synced_at`, `sync_state` (`none`, `synced`, `failed`) and `sync_reason`. Removing an item deletes

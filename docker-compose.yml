@@ -15,16 +15,31 @@ services:
         # Listed without a value so that, unless you set it in .env, the Dockerfile's pinned
         # version wins instead of being overridden by a default written here as well
         - CLAUDE_CODE_VERSION
-        - CLAUDE_SWAP_VERSION
+        - CODEX_VERSION
+        - GEMINI_CLI_VERSION
+        - COPILOT_VERSION
+        - OPENCODE_VERSION
+        - YOUTRACK_APP_VERSION
+        # A gh or glab bump needs its digest too: the build checks the download against it
+        - GH_VERSION
+        - GH_SHA256
+        - GLAB_VERSION
+        - GLAB_SHA256
+        - TAILSCALE_VERSION
+        - TAILSCALE_SHA256
     image: agentry:dev
     init: true # reaps the claude child processes
     env_file: .env
     ports:
       # localhost only: put authentication (and, off this machine, TLS) in front before changing it
       - "127.0.0.1:${PORT:-8787}:8787"
+    # The three folders the image declares as volumes, all named here. Compose prefixes a volume's
+    # name with the project's, which is the folder's name unless COMPOSE_PROJECT_NAME says otherwise:
+    # started from another folder it would find three empty ones. Set COMPOSE_PROJECT_NAME in .env
+    # once and the data follows the name, not the folder (docs/deploy.md).
     volumes:
       - claude-config:/home/node/.claude # account config: settings, MCP servers, CLAUDE.md, sessions
-      - wrapper-data:/data # wrapper state: SQLite store, provider settings, credential, uploads
+      - wrapper-data:/data # wrapper state: SQLite store, provider settings, credential, uploads, the other agents', gh's and glab's sign-ins, the Tailscale node of Remote access
       - ./workspace:/workspace # projects Claude works on
     # The image's healthcheck ends the server after three failed probes and this policy starts it
     # again: Docker itself never restarts an unhealthy container, only one that exited

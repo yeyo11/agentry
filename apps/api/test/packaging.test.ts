@@ -47,7 +47,59 @@ test('the Agentry release is read without asking GitHub, and the image says it i
   assert.equal(before.latest, null);
   assert.equal(before.checkedAt, null);
   assert.equal(before.updateAvailable, false);
-  assert.match(dockerfile, /^\s+AGENTRY_DISTRIBUTION=docker$/m);
+  assert.match(dockerfile, /^\s+AGENTRY_DISTRIBUTION=docker( \\)?$/m);
+  await app.close();
+});
+
+test('the image installs the other agents pinned inside their manifests\' ranges, and keeps their homes in /data', async () => {
+  const { PROVIDER_MANIFESTS, satisfiesRange } = await import('@agentry/core');
+  const pins: Record<string, string> = { codex: 'CODEX_VERSION', gemini: 'GEMINI_CLI_VERSION', copilot: 'COPILOT_VERSION', opencode: 'OPENCODE_VERSION' };
+  for (const [id, arg] of Object.entries(pins)) {
+    const pinned = dockerfile.match(new RegExp(`^ARG ${arg}=(\\d+\\.\\d+\\.\\d+)$`, 'm'))?.[1];
+    assert.ok(pinned, `${arg} is pinned`);
+    const range = PROVIDER_MANIFESTS.find((m) => m.id === id)?.versions.range;
+    assert.ok(range, `${id} declares a version range`);
+    assert.equal(satisfiesRange(pinned, range), 'in', `${arg}=${pinned} is inside ${range}`);
+  }
+  // Their sign-ins and sessions must not sit in the container's own layer
+  for (const name of ['CODEX_HOME', 'GEMINI_CLI_HOME', 'COPILOT_HOME', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME']) {
+    assert.match(dockerfile, new RegExp(`^\\s+${name}=/data/provider-homes/`, 'm'), name);
+  }
+});
+
+test('the image carries gh, glab and youtrack-app pinned, the two downloads checked against the vendors\' digests, and their sign-ins in /data', async () => {
+  const { PROVIDER_HOME_ENV } = await import('@agentry/core');
+  for (const arg of ['GH_VERSION', 'GLAB_VERSION', 'YOUTRACK_APP_VERSION']) {
+    assert.match(dockerfile, new RegExp(`^ARG ${arg}=\\d+\\.\\d+\\.\\d+$`, 'm'), `${arg} is pinned`);
+  }
+  // The versions the host and tracker recordings were made with, or newer: an older CLI lacks flags
+  // the adapters pass (docs/code-hosts.md)
+  const version = (arg: string) => (dockerfile.match(new RegExp(`^ARG ${arg}=(\\d+)\\.(\\d+)\\.(\\d+)$`, 'm')) ?? []).slice(1).map(Number);
+  const atLeast = (v: number[], min: number[]) => v.length === 3 && (v[0]! - min[0]! || v[1]! - min[1]! || v[2]! - min[2]!) >= 0;
+  assert.ok(atLeast(version('GH_VERSION'), [2, 92, 0]), 'gh is 2.92.0 or newer');
+  assert.ok(atLeast(version('GLAB_VERSION'), [1, 120, 0]), 'glab is 1.120.0 or newer');
+  for (const [tool, arg] of [['gh', 'GH_SHA256'], ['glab', 'GLAB_SHA256']] as const) {
+    assert.match(dockerfile, new RegExp(`^ARG ${arg}=[0-9a-f]{64}$`, 'm'), `${arg} is a pinned SHA-256`);
+    assert.match(dockerfile, new RegExp(`echo "\\$\\{${arg}\\}  \\$\\{${tool}_tar\\}" \\| sha256sum -c -`), `${tool}'s tarball is checked`);
+  }
+  assert.match(dockerfile, /^\s+@jetbrains\/youtrack-apps-tools@\$\{YOUTRACK_APP_VERSION\} \\$/m);
+  assert.match(dockerfile, /gh --version && glab --version/);
+  for (const name of ['GH_CONFIG_DIR', 'GLAB_CONFIG_DIR']) {
+    assert.match(dockerfile, new RegExp(`^\\s+${name}=/data/provider-homes/`, 'm'), name);
+    assert.ok((PROVIDER_HOME_ENV as readonly string[]).includes(name), `the server creates ${name} on a fresh volume`);
+  }
+  const compose = readFileSync(resolve(here, '../../../docker-compose.yml'), 'utf8');
+  for (const arg of ['GH_VERSION', 'GH_SHA256', 'GLAB_VERSION', 'GLAB_SHA256', 'YOUTRACK_APP_VERSION']) {
+    assert.match(compose, new RegExp(`^\\s+- ${arg}$`, 'm'), `compose passes ${arg}`);
+  }
+});
+
+test('the storage report names the three folders, and says nothing is checked outside Docker', async () => {
+  const { app } = await wrapper();
+  const report = (await app.inject('/api/system/storage')).json();
+  assert.equal(report.checked, false);
+  assert.deepEqual(report.locations, []);
+  assert.equal(report.atRisk, false);
   await app.close();
 });
 
@@ -107,6 +159,8 @@ test('the healthcheck ends the server only after the configured run of failed pr
 // the Dockerfile and the healthcheck: each is useless if one of the others moves.
 test('the image starts the compiled API instead of transpiling the source on every boot', () => {
   assert.match(dockerfile, /^CMD \["node", "\/app\/api\.mjs"\]$/m);
+  // The entrypoint starts tailscaled and then becomes that command, so the server still gets the signal
+  assert.match(dockerfile, /^ENTRYPOINT \["\/app\/entrypoint\.sh"\]$/m);
   assert.match(dockerfile, /^COPY --from=build .*\/app\/apps\/api\/dist\/api\.mjs \/app\/api\.mjs$/m);
 
   // Whatever the last stage does not carry cannot be part of the running image
@@ -206,10 +260,9 @@ test('a listen that failed for any other reason is not retried away', async (t) 
   await assert.rejects(listenOn(app, 8787, '203.0.113.1'), (err: NodeJS.ErrnoException) => err.code !== 'EADDRINUSE');
 });
 
-// Open question 2 of docs/plans/tunnel.md: in the image the container sees neither the host's
-// tailscale CLI nor its daemon, and a way in around the published port and the proxy is the
-// operator's to open, so the operator opts in.
-test('the image does not offer the tunnel until the operator turns it on', async (t) => {
+// In the image the container sees neither the host's tailscale CLI nor its daemon, so the tunnel is
+// offered only once the entrypoint started a tailscaled of the image's own and said so.
+test('the image offers the tunnel only with a tailscaled of its own, and AGENTRY_TUNNEL=off still wins', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'agentry-pkg-tunnel-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const build = (extra: Record<string, string>) =>
@@ -242,18 +295,32 @@ test('the image does not offer the tunnel until the operator turns it on', async
   const opened = build({ AGENTRY_TUNNEL: 'on' });
   t.after(() => opened.shutdown());
   assert.equal(opened.tunnel.status().enabled, true);
+
+  const managed = build({ AGENTRY_TAILSCALE_MANAGED: '1' });
+  t.after(() => managed.shutdown());
+  assert.deepEqual([managed.tunnel.status().enabled, managed.tunnel.status().managed], [true, true]);
+  const off = build({ AGENTRY_TAILSCALE_MANAGED: '1', AGENTRY_TUNNEL: 'off' });
+  t.after(() => off.shutdown());
+  assert.equal(off.tunnel.status().enabled, false);
 });
 
-test('the compose file, the .env example and the chart all say how to turn the tunnel on', () => {
+test('the compose file, the .env example and the chart all say how to turn the tunnel off', () => {
   const read = (path: string) => readFileSync(resolve(here, '../../..', path), 'utf8');
   // Compose hands .env to the container whole: documenting the variable there is what makes it reachable
   assert.match(read('docker-compose.yml'), /^\s+env_file: \.env$/m);
-  assert.match(read('.env.example'), /^# AGENTRY_TUNNEL=on$/m);
+  assert.match(read('.env.example'), /^# AGENTRY_TUNNEL=off$/m);
 
   const values = read('deploy/helm/agentry/values.yaml');
-  assert.match(values, /^tunnel:\n {2}enabled: false$/m, 'the chart keeps the tunnel off unless the release turns it on');
+  assert.match(values, /^tunnel:\n {2}enabled: true$/m, 'the chart offers the tunnel as the image does');
   // Written whatever the value, so a release that says "off" is off even on an image that changed its default
   assert.match(read('deploy/helm/agentry/templates/deployment.yaml'), /- name: AGENTRY_TUNNEL\n\s+value: \{\{ ternary "on" "off" \.Values\.tunnel\.enabled \| quote \}\}/);
+});
+
+test('the chart\'s default image is the release this checkout is, so a plain helm install is not an old one', () => {
+  const read = (path: string) => readFileSync(resolve(here, '../../..', path), 'utf8');
+  const { version } = JSON.parse(read('package.json')) as { version: string };
+  assert.match(read('deploy/helm/agentry/values.yaml'), new RegExp(`^  tag: "${version.replace(/\./g, '\\.')}" # x-release-please-version$`, 'm'));
+  assert.ok((JSON.parse(read('release-please-config.json')) as { packages: Record<string, { 'extra-files': Array<{ path: string }> }> }).packages['.']?.['extra-files'].some((file) => file.path === 'deploy/helm/agentry/values.yaml'), 'release-please moves it');
 });
 
 test('the MCP server is bundled on its own, imports only node: built-ins, and the desktop package ships it beside server.mjs', { timeout: 120_000 }, async () => {

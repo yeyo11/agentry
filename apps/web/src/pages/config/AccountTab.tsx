@@ -1,13 +1,12 @@
 import type { TokenSource } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CircleCheck, CircleX } from 'lucide-react';
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { Select } from '@agentry/ui/components/controls';
 import { ICON_SM } from '@agentry/ui/components/icons';
 import { useToast } from '@agentry/ui/components/Toast';
-import { Card, ErrorBox, Field, Skeleton, Tag } from '@agentry/ui/components/ui';
+import { Card, ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
+import { SignInPanel } from '../../components/setup/SignInPanel';
 import { CliCard } from './CliCard';
 import { UpdatesCard } from './UpdatesCard';
 
@@ -20,26 +19,19 @@ const TOKEN_SOURCE_KEY = {
   none: 'none',
 } as const satisfies Record<TokenSource, string>;
 
+/** A product name, never translated */
+const CLAUDE_CODE_LABEL = 'Claude Code';
+
 export function AccountTab() {
   const { t } = useTranslation('config');
+  const { t: tSetup } = useTranslation('setup');
   const queryClient = useQueryClient();
   const toast = useToast();
   const { data: auth, error, isLoading } = useQuery({ queryKey: keys.auth, queryFn: api.auth });
-  const [kind, setKind] = useState<'oauthToken' | 'apiKey'>('oauthToken');
-  const [secret, setSecret] = useState('');
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: keys.auth });
     void queryClient.invalidateQueries({ queryKey: keys.overview });
   };
-  const save = useMutation({
-    mutationFn: () => api.setCredentials({ [kind]: secret }),
-    onSuccess: () => {
-      setSecret('');
-      refresh();
-      toast.success(t('account.saved'), t('account.savedDetail'));
-    },
-    onError: (err) => toast.error(t('account.saveFailed'), err),
-  });
   const clear = useMutation({
     mutationFn: api.clearCredentials,
     onSuccess: () => {
@@ -106,42 +98,9 @@ export function AccountTab() {
         </p>
       </Card>
 
-      <Card title={t('account.setCredential')}>
-        <form
-          className="form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (secret.trim()) save.mutate();
-          }}
-        >
-          <Field label={t('account.type')}>
-            <Select
-              value={kind}
-              onChange={setKind}
-              options={[
-                { value: 'oauthToken', label: t('account.oauthOption') },
-                { value: 'apiKey', label: t('account.apiKeyOption') },
-              ]}
-            />
-          </Field>
-          <Field
-            label={kind === 'oauthToken' ? t('account.oauthToken') : t('account.apiKey')}
-            hint={t('account.secretHint')}
-          >
-            <input
-              type="password"
-              autoComplete="off"
-              placeholder={kind === 'oauthToken' ? 'sk-ant-oat01-…' : 'sk-ant-api03-…'}
-              value={secret}
-              onChange={(e) => setSecret(e.target.value)}
-            />
-          </Field>
-          <div className="form-actions">
-            <button type="submit" className="btn btn-primary" disabled={!secret.trim() || save.isPending}>
-              {save.isPending ? t('shared.saving') : t('account.save')}
-            </button>
-          </div>
-        </form>
+      {/* The same panel as Settings → Providers and the setup assistant: the token, or an API key */}
+      <Card title={tSetup('panel.title', { label: CLAUDE_CODE_LABEL })}>
+        <SignInPanel tool="claude-code" label={CLAUDE_CODE_LABEL} layout="card" onClose={() => undefined} />
       </Card>
     </>
   );

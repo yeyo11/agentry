@@ -2,7 +2,7 @@ import type { WorkItem, WorkItemFilter } from '@agentry/shared';
 import { useCallback, useEffect, useMemo } from 'react';
 import { useListParams } from '../../../lib/list-params';
 import { ALL_PROJECTS, useProjectScope } from '../../../lib/project-scope';
-import { apiFilter, FILTER_PARAMS, filtersFromSearch, filtersToSearch, hasFilters, inProjects, type TaskFilters } from '../../../lib/work-items';
+import { apiFilter, FILTER_PARAMS, filterChanges, filtersFromSearch, hasFilters, inProjects, type TaskFilters } from '../../../lib/work-items';
 import { NO_MILESTONE } from '../board/model';
 
 export interface TaskFilterState {
@@ -48,10 +48,9 @@ export function useTaskFilters(): TaskFilterState {
 
   const set = useCallback(
     (change: Partial<TaskFilters>) => {
-      const next = filtersToSearch({ ...filters, ...change });
-      patch(Object.fromEntries(OWNED.map((name) => [name, next.get(name)])));
+      patch(filterChanges(change));
     },
-    [filters, patch],
+    [patch],
   );
   const clear = reset;
 

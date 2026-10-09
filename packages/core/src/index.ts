@@ -8,6 +8,7 @@ import type {
   AgentryReleaseInfo,
   TrackerId,
   CliVersionInfo,
+  StorageReport,
   ProviderLimit,
   ChatProject,
   ChatSummary,
@@ -36,6 +37,8 @@ import type {
   ProjectTemplate,
   ProjectWorktree,
   RunWorkflowRequest,
+  SetupState,
+  SetupTool,
   SystemInfo,
   UpdateProjectRequest,
   Board,
@@ -90,11 +93,16 @@ import type { TranscriptSummary } from './cli-facts.ts';
 import { detectCli, execCli, getAuthStatus } from './cli.ts';
 import { CliVersionWatch } from './cli-version.ts';
 import { ReleaseWatch } from './release-watch.ts';
+import { storageReport } from './storage.ts';
 import { ConfigExplorer } from './config/explorer.ts';
 import { SettingsFiles } from './config/files.ts';
 import { ChangeWatcher } from './change-watcher.ts';
 import { Changes, type ChangeScope, type DiffOptions } from './changes.ts';
 import { CredentialStore, type StoredCredentials } from './credentials.ts';
+import { useVaultForChildren } from './child-env.ts';
+import { SecretVault } from './secret-vault.ts';
+import { LoginService } from './setup/logins.ts';
+import { setupMethods } from './setup/methods.ts';
 import { Db } from './db.ts';
 import { HealthMonitor, HealthService } from './health-service.ts';
 import { permissionEvents, runRef, runRefOr, SessionsWatcher } from './event-sources.ts';
@@ -106,7 +114,7 @@ import { CodeHostsSettingsStore } from './hosts/settings.ts';
 import { TrackersSettingsStore } from './trackers/settings.ts';
 import { TrackerError, TrackerImportService, type TrackerAccess } from './trackers/import.ts';
 import { TrackerSyncService } from './trackers/sync.ts';
-import { TrackerDetector, youtrackSecrets } from './trackers/detector.ts';
+import { TrackerDetector } from './trackers/detector.ts';
 import { YoutrackCredentialStore } from './trackers/youtrack/credentials.ts';
 import { runHostCall } from './hosts/exec.ts';
 import { youtrackIssueUrl } from './trackers/youtrack/adapter.ts';
@@ -198,7 +206,9 @@ export { DEFAULT_TOOL_PRESETS } from './chat-tools.ts';
 export { MCP_ENTRY_ENV, type AgentryMcpLaunch } from './agentry-mcp.ts';
 export { RESOURCE_KINDS } from './config/resources.ts';
 export { parseVariant, type ConfigScope } from './config/scope.ts';
-export { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, loadConfig, type AuthEnv, type CoreConfig } from './paths.ts';
+export { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, loadConfig, PROVIDER_HOME_ENV, type AuthEnv, type CoreConfig } from './paths.ts';
+export { LoginInputError, LoginRefusedError, LoginService } from './setup/logins.ts';
+export { SecretVault } from './secret-vault.ts';
 export { DashboardLayoutStore } from './dashboard-layouts.ts';
 export { AppSettingsStore, RuntimeHosts, type RunDefaults, type RuntimeHostOptions } from './app-settings.ts';
 export { DEFAULT_TUNNEL_PORT, MIN_TAILSCALE_VERSION, TunnelManager, TunnelRefusedError, parseTailscaleVersion, readinessFromStatus, servePortUse, type ServePortUse, type TunnelDeps, type TunnelTiming } from './tunnel.ts';
@@ -405,6 +415,11 @@ export class Core {
   readonly connectors: Connectors;
   readonly resources: ConfigResources;
   readonly credentials: CredentialStore;
+  /** The first setup's sign-ins: a key or a device code per tool, one live session per tool and host */
+  readonly logins: LoginService;
+  /** `secrets.json`: what a CLI reads from its environment, sealed, handed to that CLI's processes only */
+  readonly vault: SecretVault;
+  private readonly releaseVault: () => void;
   /** How the API is guarded: the auth mode, the token hash and read-only */
   readonly security: AuthStore;
   /**
@@ -490,6 +505,9 @@ export class Core {
 
   constructor(config: CoreConfig = loadConfig()) {
     this.config = config;
+    // Before anything spawns a CLI: every child environment reads its credentials from here
+    this.vault = new SecretVault(config);
+    this.releaseVault = useVaultForChildren(this.vault);
     this.providersSettings = new ProvidersSettingsStore(config);
     // The detector and the runtime share the drivers, so the models a handshake lists reach the
     // driver a mapping is checked against (a move needs the target's catalog to know its model)
@@ -516,7 +534,7 @@ export class Core {
         return this.events.emit(event);
       },
     });
-    this.youtrackCredentials = new YoutrackCredentialStore(config);
+    this.youtrackCredentials = new YoutrackCredentialStore(config, this.vault);
     this.trackers = new TrackerDetector({
       hosts: this.hosts,
       adapter: codeHostAdapter,
@@ -525,8 +543,7 @@ export class Core {
     });
     this.db = new Db(config);
     this.permissions = new PermissionBroker();
-    // Must run before anything spawns the CLI: it injects stored credentials into process.env
-    this.credentials = new CredentialStore(config);
+    this.credentials = new CredentialStore(config, this.vault);
     this.security = new AuthStore(config);
     if (this.security.environmentReset) {
       // A credential changed without a request, so the row is the only trace of who changed it
@@ -555,6 +572,7 @@ export class Core {
       tailscaleBin: config.tailscaleBin,
       port: config.tunnelPort,
       enabled: config.tunnelEnabled,
+      managed: config.tailscaleManaged,
       security: this.security,
       hosts: this.appSettings.runtimeHosts,
       emit: (event) => this.events.emit(event),
@@ -814,10 +832,23 @@ export class Core {
     this.checks = new ChecksService({ db: this.db.connection, resolve: (id) => this.changeRequests.target(id), emit: (event) => this.events.emit(event) });
     this.webhooks = new WebhookStore(this.db.connection);
     this.webhookSecrets = new WebhookSecrets(config);
+    this.logins = new LoginService({
+      vault: this.vault,
+      youtrack: this.youtrackCredentials,
+      emit: (event) => this.events.emit(event),
+      binary: (tool) => this.setupBinary(tool),
+      readiness: (tool, host) => this.setupReadiness(tool, host),
+      refusal: (tool) => (tool === 'tailscale' ? this.tailscaleRefusal() : null),
+      // A rule left in the daemon's Serve config would outlive the sign-out, and only Agentry would know it
+      beforeSignOut: async (tool) => {
+        if (tool === 'tailscale') await this.tunnel.stop();
+      },
+      tailscaleName: config.tailscaleHostname,
+    });
     // Agentry's own secrets are masked in everything that may leave the machine (a decision's state,
     // a handoff), whatever text surrounds them
     this.forgetSecrets = recognizeSecrets({
-      values: () => [this.decisionCredentials.getKey() ?? '', this.youtrackCredentials.get()?.token ?? '', ...this.webhookSecrets.values()],
+      values: () => [this.decisionCredentials.getKey() ?? '', ...this.vault.values(), ...this.webhookSecrets.values()],
       isSecret: (word) => this.security.isOwnSecret(word),
     });
     this.webhookReceiver = new WebhookReceiver({
@@ -1413,6 +1444,12 @@ export class Core {
     return this.cliVersionInfo();
   }
 
+  /** Whether the folders that hold the state would survive replacing the container; see storage.ts */
+  storageInfo(): StorageReport {
+    const { configDir, dataDir, workspaceDir } = this.config;
+    return storageReport(this.release.distribution, { config: configDir, data: dataDir, workspace: workspaceDir });
+  }
+
   /** This Agentry against the newest release, as the last check left it: no network here. */
   releaseInfo(): AgentryReleaseInfo {
     return this.release.info();
@@ -1472,11 +1509,89 @@ export class Core {
   }
 
   async clearCredentials(): Promise<SystemInfo> {
-    this.credentials.clear();
+    await this.credentials.clear();
     return this.system(true);
   }
 
   /** `claude auth status` only reports what is configured; this proves it with a minimal real request. */
+  /**
+   * What the first setup has done and what it has not, for the setup assistant and a "finish
+   * setting up" card. Reads the detectors' caches (the first call waits for a detection).
+   */
+  async setupState(): Promise<SetupState> {
+    const [providers, hosts, youtrack, tunnel] = await Promise.all([this.providers.statuses(), this.hosts.statuses(), this.trackers.status('youtrack'), this.tunnel.refresh()]);
+    const auth = this.security.config;
+    const credentials = this.youtrackCredentials.status();
+    return {
+      seen: this.appSettings.get().setupSeen,
+      access: { mode: auth.mode, tokenSet: auth.tokenSet, readOnly: auth.readOnly },
+      providers: providers
+        .filter((status) => status.reason !== 'disabled')
+        .map((status) => ({ id: status.id, label: status.label, state: status.state, reason: status.reason, account: status.account, keyStored: this.vault.has(status.id) })),
+      hosts: hosts.map((status) => ({ id: status.id, cli: status.id === 'github' ? 'gh' : 'glab', state: status.state, reason: status.reason, hosts: status.hosts.map((entry) => ({ ...entry })) })),
+      youtrack: { configured: credentials.host !== null && credentials.tokenSet, state: youtrack?.state ?? null, reason: youtrack?.reason ?? null },
+      tailscale: { enabled: tunnel.enabled, managed: tunnel.managed, state: tunnel.tailscale.state, host: tunnel.tailscale.host },
+      methods: setupMethods(),
+      secrets: { sealed: this.vault.sealed, keyBeside: this.vault.keyBeside },
+    };
+  }
+
+  /** The setup assistant was finished or skipped; refused like any app setting the environment owns */
+  async markSetupSeen(): Promise<SetupState> {
+    const settings = this.appSettings.get();
+    if (!settings.setupSeen && settings.sources.setupSeen === 'env') {
+      throw Object.assign(new Error('setupSeen is set by the environment (AGENTRY_SETUP_SEEN) and cannot be changed here'), { statusCode: 409 });
+    }
+    if (!settings.setupSeen) await this.appSettings.update({ setupSeen: true });
+    return this.setupState();
+  }
+
+  /**
+   * Why Tailscale is not signed in from here, or null where it is: only the daemon the image starts
+   * for Agentry is Agentry's to sign in, and only while the tunnel is offered at all.
+   */
+  private tailscaleRefusal(): string | null {
+    if (!this.config.tailscaleManaged) return "This machine's Tailscale belongs to it: sign it in with the Tailscale app or tailscale up. Agentry signs in only the Tailscale it runs itself, in its Docker image.";
+    if (!this.config.tunnelEnabled) return 'This Agentry does not offer the tunnel (AGENTRY_TUNNEL is off), so it runs no Tailscale to sign in.';
+    return null;
+  }
+
+  /** The binary a sign-in runs: the one the tool's detector resolved, the person's override included */
+  private async setupBinary(tool: SetupTool): Promise<string | null> {
+    if (tool === 'tailscale') return this.config.tailscaleBin;
+    if (tool === 'gh' || tool === 'glab') return (await this.hosts.status(tool === 'gh' ? 'github' : 'gitlab'))?.binaryPath ?? null;
+    if (tool === 'youtrack') return (await this.trackers.status('youtrack'))?.binaryPath ?? null;
+    return (await this.providers.status(tool))?.binaryPath ?? null;
+  }
+
+  /** A tool's readiness read again after a sign-in or a sign-out: what decides whether it worked */
+  private async setupReadiness(tool: SetupTool, host: string | null): Promise<boolean | null> {
+    if (tool === 'tailscale') {
+      // Signed in is any state past NeedsLogin: MagicDNS or HTTPS being off is the tailnet's setting, not the sign-in's
+      const { tailscale } = await this.tunnel.refresh(true);
+      return tailscale.state === 'ready' || tailscale.state === 'httpsDisabled' || tailscale.state === 'stopped';
+    }
+    if (tool === 'gh' || tool === 'glab') {
+      const status = (await this.hosts.refresh()).find((s) => s.id === (tool === 'gh' ? 'github' : 'gitlab'));
+      // Copilot falls back to gh's sign-in to github.com, and Copilot's Code is that sign-in: its
+      // row has to move with gh's, not one detection TTL later
+      if (tool === 'gh' && host === 'github.com') await this.providers.refresh({ only: ['copilot'] }).catch(() => undefined);
+      return status?.hosts.find((entry) => entry.hostname === host)?.signedIn ?? false;
+    }
+    if (tool === 'youtrack') {
+      const status = (await this.trackers.credentialsChanged('youtrack')).find((s) => s.id === 'youtrack');
+      return status ? status.state === 'ready' : null;
+    }
+    if (tool === 'claude-code') {
+      // The credential changed, so Core's shared read of the CLI is stale too
+      const { cli, auth } = await this.system(true);
+      await this.providers.refresh({ only: ['claude-code'], claude: { cli, auth } });
+    } else {
+      await this.providers.refresh({ only: [tool] });
+    }
+    return this.providers.knownSignedIn(tool);
+  }
+
   async verifyAuth(): Promise<AuthVerification> {
     const run = this.runtime.start({
       prompt: 'Reply with exactly: ok',
@@ -1691,13 +1806,13 @@ export class Core {
       throw new TrackerError(`YouTrack is not ready (${status?.reason ?? status?.state ?? 'unknown'}): see Settings, Integrations`, 409, reason);
     }
     const binaryPath = status.binaryPath;
-    const secretEnv = youtrackSecrets(credentials);
     const cwd = mainCheckout(projectPath);
     return {
       host: null,
       hostname: credentials.host,
       repo: null,
-      run: (call) => runHostCall(call, { binaryPath, cwd, baseEnv: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, secretEnv }),
+      // The address and token come from the vault, laid over by the execution layer (`buildHostEnv`)
+      run: (call) => runHostCall(call, { binaryPath, cwd, baseEnv: { ...process.env, GIT_TERMINAL_PROMPT: '0' } }),
       issueUrl: (key) => youtrackIssueUrl(credentials.host, key),
     };
   }
@@ -2652,9 +2767,11 @@ export class Core {
 
   shutdown(): void {
     this.forgetSecrets();
+    this.releaseVault();
     this.pullRequestWatcher.stop();
     // First, while the database is still open for the row that says its host left
     this.tunnel.shutdown();
+    this.logins.close();
     this.cliVersion.stop();
     this.release.stop();
     this.healthMonitor.stop();

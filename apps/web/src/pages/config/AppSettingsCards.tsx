@@ -13,7 +13,7 @@ export const APP_SETTING_ENV: Record<keyof AppSettingValues, string> = {
   allowedHosts: 'AGENTRY_ALLOWED_HOSTS',
   maxConcurrentRuns: 'AGENTRY_MAX_CONCURRENT_RUNS',
   defaultPermissionMode: 'AGENTRY_DEFAULT_PERMISSION_MODE',
-  providersStepSeen: 'AGENTRY_PROVIDERS_STEP_SEEN',
+  setupSeen: 'AGENTRY_SETUP_SEEN',
 };
 
 // The server's own bounds; a value outside them is refused with a 400

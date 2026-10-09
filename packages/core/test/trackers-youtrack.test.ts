@@ -184,7 +184,7 @@ test('the token is saved 0600, sealed with the desktop key when there is one, an
   await assert.rejects(store.set({ host: 'https://x.youtrack.cloud', token: 'perm a b' }), (err: Error) => !err.message.includes('perm a b'));
   const status = await store.set({ host: 'https://x.youtrack.cloud/', token: 'perm-secret' });
   assert.deepEqual(status, { host: 'https://x.youtrack.cloud', tokenSet: true, encrypted: true });
-  const file = join(config.dataDir, 'youtrack-credentials.json');
+  const file = join(config.dataDir, 'secrets.json');
   assert.equal(statSync(file).mode & 0o777, 0o600);
   assert.ok(!readFileSync(file, 'utf8').includes('perm-secret'));
   // Another start with the same key opens it; without the key the token is as good as absent
@@ -193,7 +193,7 @@ test('the token is saved 0600, sealed with the desktop key when there is one, an
   // Changing only the address keeps the token
   await store.set({ host: 'https://y.youtrack.cloud' });
   assert.deepEqual(store.get(), { host: 'https://y.youtrack.cloud', token: 'perm-secret' });
-  assert.deepEqual(store.clear(), { host: null, tokenSet: false, encrypted: true });
+  assert.deepEqual(await store.clear(), { host: null, tokenSet: false, encrypted: true });
   assert.equal(new YoutrackCredentialStore({ ...config, secretKey: key }).get(), null);
 });
 
@@ -203,7 +203,7 @@ test('on a server the token is a plain 0600 file, and the status says it is not 
   const store = new YoutrackCredentialStore({ dataDir: config.dataDir });
   const status = await store.set({ host: 'https://x.youtrack.cloud', token: 'perm-plain' });
   assert.equal(status.encrypted, false);
-  assert.ok(readFileSync(join(config.dataDir, 'youtrack-credentials.json'), 'utf8').includes('perm-plain'));
+  assert.ok(readFileSync(join(config.dataDir, 'secrets.json'), 'utf8').includes('perm-plain'));
 });
 
 // ---------- detection ----------

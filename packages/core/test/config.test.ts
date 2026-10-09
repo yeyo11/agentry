@@ -7,8 +7,10 @@ import { SettingsFiles } from '../src/config/files.ts';
 import { McpConfig } from '../src/config/mcp.ts';
 import { parseVariant, projectScope, userScope } from '../src/config/scope.ts';
 import { ConfigResources } from '../src/config/resources.ts';
+import { childEnv, useVaultForChildren } from '../src/child-env.ts';
 import { CredentialStore } from '../src/credentials.ts';
-import { loadConfig } from '../src/paths.ts';
+import { SecretVault } from '../src/secret-vault.ts';
+import { ensureProviderHomes, loadConfig } from '../src/paths.ts';
 import { encodeProjectId, Workspace } from '../src/workspace.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -95,36 +97,35 @@ test('a saved workflow is a script resource: found by its meta name, kept in its
   await assert.rejects(resources.remove(project, 'workflows', 'audit'), /not found/);
 });
 
-test('credential store injects, swaps and restores env', async () => {
+test('the Claude credential reaches claude processes only, wins over the container\'s, and clearing it lets that one through again', async () => {
   const config = tempConfig();
-  const before = { token: process.env.CLAUDE_CODE_OAUTH_TOKEN, key: process.env.ANTHROPIC_API_KEY };
-  process.env.CLAUDE_CODE_OAUTH_TOKEN = 'boot-token';
-  delete process.env.ANTHROPIC_API_KEY;
+  const vault = new SecretVault(config);
+  const release = useVaultForChildren(vault);
+  const boot = { CLAUDE_CODE_OAUTH_TOKEN: 'boot-token', PATH: '/usr/bin' };
   try {
-    const store = new CredentialStore(config);
+    const store = new CredentialStore(config, vault);
     assert.equal(store.active, false);
 
     await store.set({ apiKey: ' sk-test ' });
-    assert.equal(process.env.ANTHROPIC_API_KEY, 'sk-test');
-    assert.equal(process.env.CLAUDE_CODE_OAUTH_TOKEN, undefined); // only one credential type at a time
-    assert.equal(statSync(join(config.dataDir, 'credentials.json')).mode & 0o777, 0o600);
+    const claude = childEnv('claude-code', boot);
+    assert.equal(claude.ANTHROPIC_API_KEY, 'sk-test');
+    assert.equal(claude.CLAUDE_CODE_OAUTH_TOKEN, undefined); // only one credential type at a time
+    // Nothing else inherits it, and the server's own environment is untouched
+    assert.equal(childEnv('gemini', boot).ANTHROPIC_API_KEY, undefined);
+    assert.equal(process.env.ANTHROPIC_API_KEY === 'sk-test', false);
+    assert.equal(statSync(join(config.dataDir, 'secrets.json')).mode & 0o777, 0o600);
 
     // A fresh instance (wrapper restart) picks the stored credential up again
-    delete process.env.ANTHROPIC_API_KEY;
-    assert.equal(new CredentialStore(config).active, true);
-    assert.equal(process.env.ANTHROPIC_API_KEY, 'sk-test');
+    assert.equal(new CredentialStore(config, new SecretVault(config)).active, true);
 
     await assert.rejects(store.set({}), /provide oauthToken or apiKey/);
     await assert.rejects(store.set({ oauthToken: 'a', apiKey: 'b' }), /only one/);
 
-    store.clear();
-    assert.equal(process.env.CLAUDE_CODE_OAUTH_TOKEN, 'boot-token');
-    assert.equal(process.env.ANTHROPIC_API_KEY, undefined);
+    await store.clear();
+    assert.equal(store.active, false);
+    assert.deepEqual([childEnv('claude-code', boot).CLAUDE_CODE_OAUTH_TOKEN, childEnv('claude-code', boot).ANTHROPIC_API_KEY], ['boot-token', undefined]);
   } finally {
-    for (const [k, v] of [['CLAUDE_CODE_OAUTH_TOKEN', before.token], ['ANTHROPIC_API_KEY', before.key]] as const) {
-      if (v === undefined) delete process.env[k];
-      else process.env[k] = v;
-    }
+    release();
   }
 });
 
@@ -140,7 +141,7 @@ test('an allowed-hosts pattern that guards nothing stops the wrapper instead of 
   }
 });
 
-test('the tunnel is offered by default, except in the Docker image, where the operator turns it on', () => {
+test('the tunnel is offered by default, and in the Docker image only once its entrypoint started a tailscaled of its own', () => {
   const base = { CLAUDE_CONFIG_DIR: join(tmpdir(), 'agentry-switch', 'claude'), AGENTRY_DATA_DIR: join(tmpdir(), 'agentry-switch', 'data'), AGENTRY_WORKSPACE_DIR: join(tmpdir(), 'agentry-switch', 'workspace') };
   const docker = { ...base, AGENTRY_DISTRIBUTION: 'docker' };
 
@@ -155,6 +156,27 @@ test('the tunnel is offered by default, except in the Docker image, where the op
   // The switch that opens a way in is not guessed at
   for (const value of ['yes', 'enabled', 'of']) {
     assert.throws(() => loadConfig({ ...base, AGENTRY_TUNNEL: value }), /AGENTRY_TUNNEL/, value);
+  }
+});
+
+test('only the tailscaled the image started is Agentry\'s to sign in, and its node name is a host name', () => {
+  const base = { CLAUDE_CONFIG_DIR: join(tmpdir(), 'agentry-managed', 'claude'), AGENTRY_DATA_DIR: join(tmpdir(), 'agentry-managed', 'data'), AGENTRY_WORKSPACE_DIR: join(tmpdir(), 'agentry-managed', 'workspace') };
+  const docker = { ...base, AGENTRY_DISTRIBUTION: 'docker' };
+  const managed = { ...docker, AGENTRY_TAILSCALE_MANAGED: '1' };
+
+  assert.equal(loadConfig(base).tailscaleManaged, false);
+  assert.equal(loadConfig(docker).tailscaleManaged, false);
+  assert.equal(loadConfig(managed).tailscaleManaged, true);
+  // The entrypoint started a daemon, so the tunnel is offered; AGENTRY_TUNNEL=off still wins
+  assert.equal(loadConfig(managed).tunnelEnabled, true);
+  assert.equal(loadConfig({ ...managed, AGENTRY_TUNNEL: 'off' }).tunnelEnabled, false);
+  assert.equal(loadConfig({ ...docker, AGENTRY_TAILSCALE_MANAGED: '0' }).tailscaleManaged, false);
+
+  assert.equal(loadConfig(base).tailscaleHostname, 'agentry');
+  assert.equal(loadConfig({ ...base, AGENTRY_TAILSCALE_HOSTNAME: ' Agentry-Lab ' }).tailscaleHostname, 'agentry-lab');
+  // It goes to the CLI's argv: nothing that could read as a flag or leave the label
+  for (const value of ['-x', 'a b', 'a.b', 'x-', 'a'.repeat(64)]) {
+    assert.throws(() => loadConfig({ ...base, AGENTRY_TAILSCALE_HOSTNAME: value }), /AGENTRY_TAILSCALE_HOSTNAME/, value);
   }
 });
 
@@ -208,4 +230,41 @@ test('workspace projects', async () => {
   await assert.rejects(workspace.create('../escape'), /invalid project name/);
   await assert.rejects(workspace.create('repo', 'file:///etc'), /invalid git url/);
   assert.equal(encodeProjectId('/home/me/My App (1)'), '-home-me-My-App--1-');
+});
+
+test('the provider homes inside the data directory are created, and no other', () => {
+  const root = mkdtempSync(join(tmpdir(), 'agentry-homes-'));
+  const data = join(root, 'data');
+  const elsewhere = join(root, 'elsewhere', 'codex');
+  const homes = ensureProviderHomes(
+    {
+      CODEX_HOME: join(data, 'provider-homes', 'codex'),
+      GEMINI_CLI_HOME: join(data, 'provider-homes', 'gemini'),
+      COPILOT_HOME: elsewhere, // the operator's own: left to them
+      XDG_DATA_HOME: 'relative/path', // not absolute: ignored
+      XDG_CONFIG_HOME: '  ', // empty: ignored
+      GH_CONFIG_DIR: join(data, 'provider-homes', 'gh'),
+      GLAB_CONFIG_DIR: join(data, 'provider-homes', 'glab'),
+    },
+    data,
+  );
+  assert.deepEqual(homes, [
+    join(data, 'provider-homes', 'codex'),
+    join(data, 'provider-homes', 'gemini'),
+    join(data, 'provider-homes', 'gh'),
+    join(data, 'provider-homes', 'glab'),
+  ]);
+  // gh and glab keep their host sign-ins there, so a fresh volume must have both folders too
+  assert.ok(statSync(join(data, 'provider-homes', 'glab')).isDirectory());
+  assert.ok(statSync(join(data, 'provider-homes', 'codex')).isDirectory());
+  assert.equal(existsSync(elsewhere), false);
+  // The data directory itself is not a provider home to make
+  assert.deepEqual(ensureProviderHomes({ CODEX_HOME: data }, data), []);
+});
+
+test('loadConfig makes the provider homes the image points under the data directory', () => {
+  const root = mkdtempSync(join(tmpdir(), 'agentry-homes-'));
+  const data = join(root, 'data');
+  loadConfig({ AGENTRY_DATA_DIR: data, AGENTRY_WORKSPACE_DIR: join(root, 'ws'), CODEX_HOME: join(data, 'provider-homes', 'codex') });
+  assert.ok(statSync(join(data, 'provider-homes', 'codex')).isDirectory());
 });

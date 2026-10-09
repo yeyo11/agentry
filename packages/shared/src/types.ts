@@ -55,6 +55,32 @@ export interface AgentryReleaseInfo {
 }
 
 /**
+ * What a folder of the server sits on, read from the mounts the process sees. `persistent` is a
+ * named volume, a bind mount or an orchestrator's claim: it outlives the container. The other three
+ * do not: `anonymous` is a volume Docker made on its own (the image declares `VOLUME`, the command
+ * did not name one), which the next `docker run` replaces with an empty one; `container` is the
+ * container's own layer; `temporary` is memory or an emptyDir. `unknown` is a mount table that could
+ * not be read or told apart.
+ */
+export type StorageKind = 'persistent' | 'anonymous' | 'container' | 'temporary' | 'unknown';
+
+export interface StorageLocation {
+  /** `config` is the Claude config dir (`~/.claude`), `data` the wrapper's state, `workspace` the projects */
+  id: 'config' | 'data' | 'workspace';
+  path: string;
+  kind: StorageKind;
+}
+
+export interface StorageReport {
+  distribution: AgentryDistribution;
+  /** Only a container can lose its folders to a recreate; elsewhere the list is empty */
+  checked: boolean;
+  locations: StorageLocation[];
+  /** At least one folder will not survive replacing the container */
+  atRisk: boolean;
+}
+
+/**
  * `wrapper-*`: configured through the API; `env-*`: passed through the container environment;
  */
 export type TokenSource =
@@ -3992,11 +4018,11 @@ export interface AppSettingValues {
   /** The `--permission-mode` of a run that does not ask for one; applies to the next run */
   defaultPermissionMode: PermissionMode;
   /**
-   * The first-run Providers step was shown and answered (continued or skipped). Kept here rather than
-   * in the browser so a second browser, a phone or the desktop app does not ask again; the step still
-   * returns whenever no provider is ready.
+   * The setup assistant was finished or skipped. Kept here rather than in the browser so a second
+   * browser, a phone or the desktop app does not ask again. It replaces `providersStepSeen`: that
+   * stored value and its variable, `AGENTRY_PROVIDERS_STEP_SEEN`, still count.
    */
-  providersStepSeen: boolean;
+  setupSeen: boolean;
 }
 
 /**
@@ -4061,7 +4087,9 @@ export type TunnelState = 'stopped' | 'starting' | 'verifying' | 'active' | 'sto
  *   `https://<node>.<tailnet>.ts.net` to answer on;
  * - `ready`: Serve can be used.
  *
- * Agentry never signs in, starts or configures Tailscale itself: it says what to run.
+ * A Tailscale that belongs to the machine (a source checkout, the desktop app) is never signed in,
+ * started or configured by Agentry: it says what to run. Only the `tailscaled` the Docker image
+ * starts for Agentry (`TunnelStatus.managed`) is signed in and out from the app (docs/setup.md).
  */
 export type TailscaleReadinessState = 'missing' | 'unsupported' | 'daemonDown' | 'loggedOut' | 'stopped' | 'httpsDisabled' | 'ready';
 
@@ -4098,13 +4126,17 @@ export interface TunnelStatus {
   /** Why the tunnel failed, with a code a client translates; null unless `state` is `failed` */
   reason: Localized | null;
   /**
-   * Whether this deploy offers the tunnel at all (`AGENTRY_TUNNEL`). Off by default in the Docker
-   * image and the Helm chart: the container sees neither the host's `tailscale` CLI nor its
-   * daemon, and a way in that goes around the operator's published port and proxy is the
-   * operator's call. While false, `start` is refused and the UI says who can turn it on instead of
-   * offering a button
+   * Whether this deploy offers the tunnel at all (`AGENTRY_TUNNEL`, on by default). While false,
+   * `start` is refused and the UI says who can turn it on instead of offering a button
    */
   enabled: boolean;
+  /**
+   * Whether the `tailscaled` behind the CLI is Agentry's own: the one the Docker image starts in
+   * userspace networking, with its state on the data volume (`AGENTRY_TAILSCALE_MANAGED`). Only
+   * then does the app sign it in and out (`POST /setup/logins` with `tool: 'tailscale'`); a
+   * machine's own Tailscale is the person's, and the UI says what to run instead
+   */
+  managed: boolean;
   /** Whether Tailscale can carry the tunnel, and if not, why; the UI shows nothing else until it is `ready` */
   tailscale: TailscaleReadiness;
   /** The HTTPS port on the tailnet name that Agentry's Serve rule uses (`AGENTRY_TUNNEL_PORT`, 8443 by default) */
@@ -6382,6 +6414,185 @@ export interface WebhookChangedEvent extends AgentryEventBase {
   registration: WebhookRegistration;
 }
 
+// ---------- Setup ----------
+
+/**
+ * What the setup signs in, by the name its CLI goes by: the five agents, the two code hosts' CLIs
+ * (`gh` for GitHub, `glab` for GitLab), YouTrack, and the Tailscale that carries Remote access
+ * (only where Agentry runs its daemon: `TunnelStatus.managed`).
+ */
+export const SETUP_TOOLS = ['claude-code', 'codex', 'gemini', 'copilot', 'opencode', 'gh', 'glab', 'youtrack', 'tailscale'] as const;
+export type SetupTool = (typeof SETUP_TOOLS)[number];
+
+/**
+ * `key`: a key or token the person pastes. `device`: the vendor's device-code sign-in, where the
+ * person opens a URL on their own device and types the code Agentry shows.
+ */
+export type LoginMethod = 'key' | 'device';
+
+/** What one tool offers, from a static table written from each vendor's documentation (docs/setup.md). */
+export interface SetupToolMethods {
+  tool: SetupTool;
+  /**
+   * How a key reaches the tool. `env`: Agentry keeps it sealed and hands it to that CLI's processes
+   * in their environment. `stdin`: it is given once to the CLI's own login command, which stores it.
+   * `file`: the same, through a file of mode 0600 the command is pointed at and that is removed once
+   * it ended (Tailscale's `--auth-key=file:<path>`, the only way its CLI takes a key outside argv).
+   */
+  key: 'env' | 'stdin' | 'file';
+  /** For `env`, the variables the key may go in; the first is the default. Empty for `stdin`. */
+  variables: string[];
+  /** For `env`: only one of `variables` may be set at a time (Claude Code would otherwise pick for us) */
+  exclusive: boolean;
+  /** Whether the vendor documents a device-code sign-in Agentry runs */
+  device: boolean;
+  /**
+   * The device sign-in is another tool's: Copilot's Code signs the GitHub CLI in to github.com,
+   * whose token Copilot falls back to (GitHub's documented order). `POST /setup/logins` with the
+   * tool's `device` starts that tool's session, and the session names it. Null for every other tool.
+   */
+  deviceVia: { tool: SetupTool; host: string | null } | null;
+  /** Whether a host name is part of the sign-in: `gh` and `glab` name one, YouTrack an address */
+  needsHost: boolean;
+  /** The host used when none is given (`github.com`, `gitlab.com`); null where there is none */
+  defaultHost: string | null;
+  /** False where there is no way to sign out from a program */
+  signOut: boolean;
+  /**
+   * Signing out only forgets the key Agentry keeps (Gemini, OpenCode, Copilot), so it is offered
+   * only while one is kept: Copilot's own sign-in, or the GitHub CLI's it falls back to, is not Agentry's to undo.
+   */
+  signOutKeyOnly: boolean;
+}
+
+export type LoginState = 'starting' | 'waiting-for-person' | 'succeeded' | 'failed' | 'expired' | 'cancelled';
+
+/**
+ * Why a sign-in failed, as a code and never as what the CLI printed. `cli-missing`: the tool's
+ * binary was not found. `spawn-failed`: it could not be started. `cli-refused`: the CLI exited with
+ * an error. `no-code`: a device sign-in ended before it showed a URL and a code. `not-signed-in`:
+ * the command finished but the tool's readiness still says signed out. `timeout`: a key login did not
+ * finish in time and was stopped.
+ */
+export type LoginErrorCode = 'cli-missing' | 'spawn-failed' | 'cli-refused' | 'no-code' | 'not-signed-in' | 'timeout';
+
+/** One sign-in, as `POST /setup/logins` started it. Never carries the key or anything else the CLI printed. */
+export interface LoginSession {
+  id: string;
+  tool: SetupTool;
+  method: LoginMethod;
+  /** The host or address it signs in to; null for an agent */
+  host: string | null;
+  state: LoginState;
+  /** The page the person opens, for a device sign-in once the CLI printed it */
+  url: string | null;
+  /**
+   * The code the person types there. Null for Tailscale, whose login URL is the whole sign-in: the
+   * person opens it and approves, with nothing to type
+   */
+  code: string | null;
+  startedAt: string;
+  /** When a live sign-in stops waiting: 15 minutes after it started */
+  expiresAt: string;
+  /** Set once it ended */
+  endedAt: string | null;
+  error: LoginErrorCode | null;
+  /**
+   * What the tool's readiness said once the sign-in ended: true signed in, false not, null when the
+   * vendor offers no probe (Gemini) or it was not read
+   */
+  ready: boolean | null;
+}
+
+/** `POST /setup/logins` */
+export interface StartLoginRequest {
+  tool: SetupTool;
+  method: LoginMethod;
+  /** `gh` and `glab`: the host name (their default when absent). YouTrack: the instance address (required). */
+  host?: string;
+  /** The key or token, for `key`; write-only */
+  secret?: string;
+  /** For a tool that takes the key in one of several variables (Claude Code, OpenCode): which one */
+  variable?: string;
+}
+
+/** `DELETE /setup/credentials/:tool`: whether the tool was signed out, or why it cannot be from here. */
+export interface SignOutResult {
+  tool: SetupTool;
+  host: string | null;
+  signedOut: boolean;
+  /** `unsupported`: the vendor documents no sign-out command (Copilot). `cli-refused`/`cli-missing`: the command failed or is not there. */
+  reason: 'unsupported' | 'cli-refused' | 'cli-missing' | null;
+}
+
+/** How Agentry keeps the secrets it hands a CLI through its environment. */
+export interface SecretStorageStatus {
+  /** Values are encrypted on disk; false only where there is no key (a desktop app without a keyring, or a source install) */
+  sealed: boolean;
+  /**
+   * The key sits in the data directory beside what it seals (the Docker image without
+   * `AGENTRY_SECRET_KEY`): it protects a copy of the files, not the volume. Passing the key through
+   * the environment is the recommended setup.
+   */
+  keyBeside: boolean;
+}
+
+/** One enabled agent in the setup state. */
+export interface SetupProviderSummary {
+  id: ProviderId;
+  label: string;
+  state: ProviderReadinessState;
+  reason: ProviderReasonCode | null;
+  account: string | null;
+  /** A key Agentry keeps for it in the vault (Claude Code, Gemini, OpenCode) */
+  keyStored: boolean;
+}
+
+/** One code host's CLI in the setup state. */
+export interface SetupHostSummary {
+  id: CodeHostId;
+  cli: 'gh' | 'glab';
+  state: CodeHostState;
+  reason: CodeHostReason | null;
+  hosts: CodeHostHostEntry[];
+}
+
+/**
+ * The Tailscale behind Remote access, in the setup state. The setup offers its sign-in only while
+ * `managed`: elsewhere it shows the state and what to run.
+ */
+export interface SetupTailscaleSummary {
+  /** This deploy offers the tunnel (`AGENTRY_TUNNEL`) */
+  enabled: boolean;
+  /** Agentry runs this `tailscaled` (the Docker image), so it signs it in and out */
+  managed: boolean;
+  state: TailscaleReadinessState;
+  /** The node's MagicDNS name once it has one */
+  host: string | null;
+}
+
+/** `GET /setup`: what the first setup has done and what it has not. */
+export interface SetupState {
+  /** The setup assistant was finished or skipped (`setupSeen` in the app settings) */
+  seen: boolean;
+  access: { mode: AuthMode; tokenSet: boolean; readOnly: boolean };
+  providers: SetupProviderSummary[];
+  hosts: SetupHostSummary[];
+  youtrack: { configured: boolean; state: TrackerState | null; reason: TrackerReason | null };
+  tailscale: SetupTailscaleSummary;
+  methods: SetupToolMethods[];
+  secrets: SecretStorageStatus;
+}
+
+/**
+ * A sign-in moved: it started, showed its code, or ended. Carries the URL and the code and never
+ * anything else the CLI printed.
+ */
+export interface LoginUpdatedEvent extends AgentryEventBase {
+  type: 'login.updated';
+  login: LoginSession;
+}
+
 /** Everything the buffered feed carries, discriminated by `type`. */
 export type AgentryEvent =
   | RunCreatedEvent
@@ -6437,7 +6648,8 @@ export type AgentryEvent =
   | SettingsChangedEvent
   | DashboardLayoutChangedEvent
   | TunnelChangedEvent
-  | WebhookChangedEvent;
+  | WebhookChangedEvent
+  | LoginUpdatedEvent;
 
 export type AgentryEventType = AgentryEvent['type'];
 

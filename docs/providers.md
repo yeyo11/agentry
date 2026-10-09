@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:00:00Z
-updated_at: 2026-10-08T18:00:00Z
+updated_at: 2026-10-09T10:00:00Z
 tags:
     - providers
     - detection
@@ -120,8 +120,11 @@ Scope of phase 1:
 
 - **Handshakes spend nothing.** One that would cost tokens or quota is not run; readiness then rests
   on version and auth.
-- **Sign in:** Claude Code's action opens the account flow Agentry already has (Settings → Account).
-  Every other provider links to its vendor's sign-in page.
+- **Sign in** was, in phase 1, Settings → Account for Claude Code and a link to the vendor's page
+  for every other provider. Since 2026-10-08 every provider signs in from Agentry, with a key and,
+  where the vendor documents one, a device code (Codex; Copilot through gh's), and signs out from the
+  same row; see [setup.md](setup.md#methods-per-tool). Claude Code takes the token
+  `claude setup-token` makes on the person's own machine, because its `auth login` needs a terminal.
 - **Install is a link** to the vendor's page. Agentry does not run installers or show commands; the
   watchers below pick the binary up once it lands on PATH.
 
@@ -168,11 +171,14 @@ found (an override included), and spends nothing:
   reports one: `config.json` in `COPILOT_HOME` (`~/.copilot` by default; `copilot help config` calls
   it the "global config.json"). It starts with `//` comment lines and lists `loggedInUsers` and the
   `lastLoggedInUser` (`{ host, login }`, recorded on 1.0.91). An account listed is `ready` and named
-  on the status (`login`, or `login@host` off github.com); no file or no account is `signed-out`,
-  unless `COPILOT_GITHUB_TOKEN`, `GH_TOKEN` or `GITHUB_TOKEN` is set, which signs the CLI in with
-  nothing free to check, and stays `unknown` / `no-probe`. The token is in the system's credential
-  store, so an account whose token was revoked reads `ready` until a chat fails on it. The UI offers
-  no Retry for `no-probe`: there is no check to repeat.
+  on the status (`login`, or `login@host` off github.com). With no account listed, Copilot is still
+  `ready` when `COPILOT_GITHUB_TOKEN`, `GH_TOKEN` or `GITHUB_TOKEN` is in its environment (the vault's
+  included: the manifest's `credentialEnvSignsIn`), or when the GitHub CLI holds a github.com token
+  (`gh auth token --hostname github.com` exits 0 and prints something; the manifest's `ghFallback`,
+  run by `providers/gh-fallback.ts` with the probe timeout, the token never kept). Both are what
+  GitHub documents for containers, where Copilot's own login cannot store a token without a
+  keychain (2026-10-08, [[setup.md]], "Copilot in a container"). Otherwise it is `signed-out`. A
+  stored token is not validated for free, so one that was revoked reads `ready` until a chat fails on it.
 - **Copilot's models** are not in `initialize`. From 1.0.91 `session/new` lists them (`models` and a
   `model` config option), but every session it opens stays in the person's Copilot history and
   `session/close` does not remove it, so detection never opens one. A chat's session teaches them
@@ -332,19 +338,18 @@ in `packages/core/src/providers/acp/` runs the protocol, and what differs per ag
 
 ## The first-run step
 
-`apps/web/src/components/ProvidersStep.tsx` stands in for the whole app, with no shell, and lists what
-the detector found grouped by state (ready, signed out, needs attention, used before, not installed).
-It is shown when `providersStepSeen` in the app settings is off (the first start), and on every start
-where no provider is usable, so a wrapper that cannot run a chat says why first. Once seen, it never
-stands in front of Settings (`/settings`), which is where a provider gets fixed; Home and the status
-bar still say nothing is ready. The primary action is
-"Continue with" the first ready provider; "Skip for now" is always there and, like Continue, records
-the step as seen (`PUT /settings/app`, or `AGENTRY_PROVIDERS_STEP_SEEN=on` from the environment).
-Skipping while nothing is ready hides it for that page load only. When every provider is missing the
-page is an `Empty` state with the install link for Claude Code and the others as chips. "Check again"
-calls `POST /providers/refresh`, and an install or sign-in made in a terminal arrives through
-`providers.changed`.
+The first-run Providers step (`ProvidersStep.tsx`) is gone since 2026-10-08: the setup assistant of
+[setup.md](setup.md) stands in for the app on a first start instead, and its Agents step lists the
+providers switched on, each with the same Sign in panel as Settings → Providers, or the install page
+when none is found (`nothingFound` in `apps/web/src/lib/first-run.ts`). It is shown while `setupSeen`
+in the app settings is off; it replaced `providersStepSeen`, and a stored `providersStepSeen` or the
+older `AGENTRY_PROVIDERS_STEP_SEEN` still counts, so an install that saw the old step is not walked
+through the assistant. Finishing or skipping it records the setting (`POST /setup/seen`, or
+`AGENTRY_SETUP_SEEN=on` from the environment) and it never comes back: unlike the old step it does not
+return on a start where no provider is usable. Home and the status bar say nothing is ready and point
+at Settings, where a provider gets fixed. "Check again" calls `POST /providers/refresh`, and an
+install or sign-in made in a terminal arrives through `providers.changed`.
 
 ## Related
 
-[[plans/multi-provider.md]] · [[status.md]] · [[decision-engine.md]] · [[desktop.md]] · [[deploy.md]] · [[knowledge-base.md]] · [[tunnel.md]] · [[code-hosts.md]]
+[[plans/multi-provider.md]] · [[status.md]] · [[decision-engine.md]] · [[desktop.md]] · [[deploy.md]] · [[knowledge-base.md]] · [[tunnel.md]] · [[code-hosts.md]] · [[setup.md]]

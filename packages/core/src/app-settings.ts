@@ -71,8 +71,8 @@ function parseValue(key: keyof AppSettingValues, value: unknown): AppSettingValu
         throw new Error(`defaultPermissionMode must be one of ${PERMISSION_MODES.join(', ')}`);
       }
       return value as PermissionMode;
-    case 'providersStepSeen':
-      if (typeof value !== 'boolean') throw new Error('providersStepSeen must be true or false');
+    case 'setupSeen':
+      if (typeof value !== 'boolean') throw new Error('setupSeen must be true or false');
       return value;
   }
 }
@@ -84,7 +84,9 @@ function parseValue(key: keyof AppSettingValues, value: unknown): AppSettingValu
  */
 function sanitize(raw: unknown): Partial<AppSettingValues> {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
-  const doc = raw as Record<string, unknown>;
+  const doc = { ...(raw as Record<string, unknown>) };
+  // Written by the first-run Providers step the setup assistant replaced: an install that answered it has seen the setup
+  if (doc.setupSeen === undefined && doc.providersStepSeen !== undefined) doc.setupSeen = doc.providersStepSeen;
   const out: Partial<Record<keyof AppSettingValues, unknown>> = {};
   for (const key of KEYS) {
     if (doc[key] === undefined) continue;
@@ -173,7 +175,7 @@ export class AppSettingsStore implements RunDefaults {
   ) {
     this.file = join(config.dataDir, 'app-settings.json');
     this.fromEnv = config.settingsFromEnv;
-    this.env = { allowedHosts: [...config.allowedHosts], maxConcurrentRuns: config.maxConcurrentRuns, defaultPermissionMode: config.defaultPermissionMode, providersStepSeen: config.providersStepSeen };
+    this.env = { allowedHosts: [...config.allowedHosts], maxConcurrentRuns: config.maxConcurrentRuns, defaultPermissionMode: config.defaultPermissionMode, setupSeen: config.setupSeen };
     if (existsSync(this.file)) {
       try {
         this.stored = sanitize(JSON.parse(readFileSync(this.file, 'utf8')));

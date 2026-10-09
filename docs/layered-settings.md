@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T18:00:00Z
-updated_at: 2026-10-06T12:00:00Z
+updated_at: 2026-10-09T10:00:00Z
 tags:
     - settings
     - configuration
@@ -17,7 +17,7 @@ Agentry runs, from Settings → Security:
 | `allowedHosts` | `AGENTRY_ALLOWED_HOSTS` (its hosts add to the file's, see below) | none (loopback only) | the next request |
 | `maxConcurrentRuns` | `AGENTRY_MAX_CONCURRENT_RUNS` | `8` (1 to 64) | the next chat or orchestration worker |
 | `defaultPermissionMode` | `AGENTRY_DEFAULT_PERMISSION_MODE` | `acceptEdits` (`bypassPermissions` in the image) | the next run that does not choose one |
-| `providersStepSeen` | `AGENTRY_PROVIDERS_STEP_SEEN` (`on` or `off`) | `off` | the next start: the first-run Providers step is shown only when it is off, or when no provider is ready |
+| `setupSeen` | `AGENTRY_SETUP_SEEN` (`on` or `off`; the older `AGENTRY_PROVIDERS_STEP_SEEN` still counts) | `off` | the next start: the setup assistant is shown only while it is off. A `providersStepSeen` stored before the rename counts as `setupSeen` |
 
 ## Which value wins
 
@@ -142,4 +142,4 @@ their owner adds and removes while Agentry runs. The only owner so far is the
 
 ## Related
 
-[[tunnel.md]] · [[plans/tunnel.md]] · [[deploy.md]] · [[security-model]]
+[[tunnel.md]] · [[plans/tunnel.md]] · [[deploy.md]] · [[security-model.md]]

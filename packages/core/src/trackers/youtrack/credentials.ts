@@ -1,9 +1,9 @@
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import type { YoutrackCredentialsStatus } from '@agentry/shared';
-import { writeAtomic } from '../../config/files.ts';
 import type { CoreConfig } from '../../paths.ts';
 import { SecretBox } from '../../secret-box.ts';
+import { SecretVault } from '../../secret-vault.ts';
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
@@ -32,41 +32,61 @@ export function normalizeYoutrackHost(input: string): string {
   return `${url.origin}${url.pathname.replace(/\/+$/, '')}`;
 }
 
+const TOOL = 'youtrack';
+const HOST = 'YOUTRACK_HOST';
+const TOKEN = 'YOUTRACK_TOKEN';
+
 /**
- * `youtrack-credentials.json`: the one secret Agentry keeps for a tracker (code hosts decision 3).
- * A 0600 file, the token sealed through the `SecretBox` when the desktop app handed the server its
- * key and plain on a server. The token is never returned by a route and never put in argv: it
- * reaches `youtrack-app` only through the child's environment (`hosts/env.ts`).
+ * The one secret Agentry keeps for a tracker (code hosts decision 3): YouTrack's address and
+ * permanent token, in the secret vault under `youtrack`, as the two variables `youtrack-app` reads.
+ * The token is never returned by a route and never put in argv: it reaches `youtrack-app` only
+ * through the child's environment (`childEnv`, by way of `hosts/env.ts`).
+ *
+ * Before the vault it was `youtrack-credentials.json`, the token sealed with the desktop app's key
+ * when there was one. That file is read once and removed; one whose token this key cannot open (the
+ * desktop app's keyring was locked) is left alone, so a later start with the key still moves it.
  */
 export class YoutrackCredentialStore {
-  private readonly file: string;
-  private readonly box: SecretBox;
-  private host: string | null = null;
-  private token: string | null = null;
+  private readonly vault: SecretVault;
 
-  constructor(config: Pick<CoreConfig, 'dataDir' | 'secretKey'>) {
-    this.file = join(config.dataDir, 'youtrack-credentials.json');
-    this.box = new SecretBox(config.secretKey);
-    if (!existsSync(this.file)) return;
+  constructor(config: Pick<CoreConfig, 'dataDir' | 'secretKey' | 'distribution'>, vault: SecretVault = new SecretVault(config)) {
+    this.vault = vault;
+    this.migrate(join(config.dataDir, 'youtrack-credentials.json'), new SecretBox(config.secretKey));
+  }
+
+  private migrate(file: string, box: SecretBox): void {
+    if (!existsSync(file)) return;
+    let stored: unknown;
     try {
-      const stored: unknown = JSON.parse(readFileSync(this.file, 'utf8'));
-      if (!isObject(stored)) return;
-      if (typeof stored.host === 'string' && stored.host) this.host = stored.host;
-      // A token this box cannot open (another key, or sealed by another app) is as good as absent
-      if (typeof stored.token === 'string' && stored.token) this.token = this.box.open(stored.token);
+      stored = JSON.parse(readFileSync(file, 'utf8'));
     } catch {
-      this.host = null;
-      this.token = null;
+      return;
     }
+    if (!isObject(stored)) return;
+    const values: Record<string, string> = {};
+    if (typeof stored.host === 'string' && stored.host) values[HOST] = stored.host;
+    if (typeof stored.token === 'string' && stored.token) {
+      const token = box.open(stored.token);
+      if (token === null) return;
+      values[TOKEN] = token;
+    }
+    if (Object.keys(values).length === 0 || this.vault.importSync(TOOL, values, { replace: true })) rmSync(file, { force: true });
+  }
+
+  private read(): { host: string | null; token: string | null } {
+    const kept = this.vault.get(TOOL);
+    return { host: kept[HOST] ?? null, token: kept[TOKEN] ?? null };
   }
 
   /** For the execution layer and the detector only */
   get(): YoutrackCredentials | null {
-    return this.host && this.token ? { host: this.host, token: this.token } : null;
+    const { host, token } = this.read();
+    return host && token ? { host, token } : null;
   }
 
   status(): YoutrackCredentialsStatus {
-    return { host: this.host, tokenSet: this.token !== null, encrypted: this.box.encrypts };
+    const { host, token } = this.read();
+    return { host, tokenSet: token !== null, encrypted: this.vault.sealed };
   }
 
   /**
@@ -77,7 +97,7 @@ export class YoutrackCredentialStore {
     if (!isObject(input)) throw new Error('credentials must be an object');
     if (typeof input.host !== 'string') throw new Error('host is required');
     const host = normalizeYoutrackHost(input.host);
-    let token = this.token;
+    let token = this.read().token;
     if (input.token !== undefined && input.token !== null) {
       const given = typeof input.token === 'string' ? input.token.trim() : '';
       // The message never echoes the value: a token pasted into the wrong field is still a token
@@ -85,16 +105,12 @@ export class YoutrackCredentialStore {
       token = given;
     }
     if (!token) throw new Error('token is required the first time');
-    await writeAtomic(this.file, JSON.stringify({ host, token: this.box.seal(token) }), 0o600);
-    this.host = host;
-    this.token = token;
+    await this.vault.set(TOOL, { [HOST]: host, [TOKEN]: token }, { replace: true });
     return this.status();
   }
 
-  clear(): YoutrackCredentialsStatus {
-    this.host = null;
-    this.token = null;
-    rmSync(this.file, { force: true });
+  async clear(): Promise<YoutrackCredentialsStatus> {
+    await this.vault.clear(TOOL);
     return this.status();
   }
 }

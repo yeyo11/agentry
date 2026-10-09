@@ -197,8 +197,10 @@ export default async ({ page, api, check, dirs }) => {
       // A work item's page heads itself and has no tab bar, so only the page is waited for
       await page.waitFor(`return !!document.querySelector('main')?.innerText.trim()`, { label: `[390px ${path}] the page`, timeout: 60_000 });
       // A list still loading shows the FAB, and an empty one then trades it for its own action: measure
-      // only once the page has its data, or the FAB can vanish between the reading and the click
-      await page.waitFor(`return !document.querySelector('main .skeleton')`, { label: `[390px ${path}] the page's data`, timeout: 60_000 });
+      // only once the page has its data, or the FAB can vanish between the reading and the click. A
+      // page loads behind a skeleton or behind `Loading` (Orchestrations does, also while the top
+      // bar's remembered project resolves), so both have to be gone
+      await page.waitFor(`return !document.querySelector('main .skeleton, main .state[role=status]')`, { label: `[390px ${path}] the page's data`, timeout: 60_000 });
       return settled(
         `const standIn = !!document.querySelector('main .state-empty .btn-primary'); const f = document.querySelector('.fab'); if (!f || !f.getClientRects().length) return { standIn, shown: false }; const r = f.getBoundingClientRect(), t = document.querySelector('.tabbar')?.getBoundingClientRect(); return { standIn, shown: true, text: f.innerText.trim(), name: f.getAttribute('aria-label') ?? f.innerText.trim(), above: t ? t.top - r.bottom : null, height: r.height, width: r.width, right: innerWidth - r.right }`,
         (seen) => seen !== null && ((name === null || seen.standIn) ? !seen.shown : seen.shown && seen.text === '' && seen.name === name && seen.above !== null && seen.above >= 8),

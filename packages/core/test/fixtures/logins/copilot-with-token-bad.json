@@ -1,0 +1,11 @@
+{
+  "command": "echo bad | copilot login --with-token",
+  "stdin": "pipe: the line \"bad\"",
+  "tty": false,
+  "exitCode": 1,
+  "stopped": "exited",
+  "secondsRunning": 1,
+  "version": "GitHub Copilot CLI 1.0.93.",
+  "recordedAt": "2026-10-08",
+  "image": "agentry:fixes-test, plus gh 2.102.0 and glab 1.120.0 release binaries"
+}

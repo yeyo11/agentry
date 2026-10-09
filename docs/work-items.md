@@ -577,7 +577,8 @@ The routes:
 - `/tasks`: the board, or `?view=list`;
 - `/tasks/milestones`;
 - `/tasks/:key`: one item;
-- `?new=1` on any of them opens New task.
+- `?new=1` on any of them opens New task, and `&column=<status>` preselects its column (`status` is
+  the status filter, which the form leaves alone).
 
 `/tasks/:key` asks `GET /work-items/by-key/:key`, which answers the item's page for its key in any
 case, and seeds the item's own cache with it (orchestration 6, gap 16). Before, it searched every

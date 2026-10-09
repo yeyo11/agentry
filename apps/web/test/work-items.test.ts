@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Board, WorkItem, WorkItemLink } from '@agentry/shared';
 import {
+  filterChanges,
+  searchBoxText,
   NEW_TASK_PATH,
   WORK_ITEM_COLUMNS,
   WORK_ITEM_PRIORITY_META,
@@ -174,4 +176,20 @@ test('an epic takes no place in a column, and the empty board names the project\
   assert.equal(firstKey({ key: 'SHOP' }), 'SHOP-1');
   assert.equal(firstKey(null), undefined);
   assert.equal(firstKey({ key: '' }), undefined);
+});
+
+test('the task search box keeps what is being typed when its own search comes back', () => {
+  // "fix " was typed, `fix` was written: the space stays
+  assert.equal(searchBoxText('fix ', 'fix', 'fix'), 'fix ');
+  // A key pressed between that write's render and its effect stays
+  assert.equal(searchBoxText('fixe', 'fix', 'fix'), 'fixe');
+  // "Clear all", Back or a link replace it
+  assert.equal(searchBoxText('fix', '', 'fix'), '');
+  assert.equal(searchBoxText('fix', 'login', 'fix'), 'login');
+});
+
+test('a change to the task filters sets only the parameters of the fields it names', () => {
+  assert.deepEqual(filterChanges({ epicId: undefined }), { epic: null });
+  assert.deepEqual(filterChanges({ status: ['todo', 'in_progress'], q: 'fix' }), { status: 'todo,in_progress', q: 'fix' });
+  assert.deepEqual(filterChanges({}), {});
 });

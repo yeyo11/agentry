@@ -64,6 +64,7 @@ const LINKS: Record<string, { install: string; signIn: string }> = {
   codex: { install: 'https://github.com/openai/codex', signIn: 'https://github.com/openai/codex' },
   gemini: { install: 'https://github.com/google-gemini/gemini-cli', signIn: 'https://github.com/google-gemini/gemini-cli' },
   copilot: { install: 'https://docs.github.com/copilot/how-tos/copilot-cli', signIn: 'https://docs.github.com/copilot/how-tos/copilot-cli' },
+  opencode: { install: 'https://opencode.ai/docs/', signIn: 'https://opencode.ai/docs/providers/' },
 };
 
 /** The vendor page for an action, or null for a provider whose page this build does not know. */

@@ -41,7 +41,7 @@ export const trackerRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
   });
 
   app.delete('/trackers/youtrack/credentials', async (): Promise<YoutrackCredentialsStatus> => {
-    const status = core.youtrackCredentials.clear();
+    const status = await core.youtrackCredentials.clear();
     await core.trackers.credentialsChanged('youtrack');
     return status;
   });

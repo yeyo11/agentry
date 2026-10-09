@@ -20,6 +20,9 @@ export const systemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { co
   app.get('/system/release', () => core.releaseInfo());
   app.post('/system/release/check', () => core.checkRelease());
 
+  // Whether the folders that hold the state would survive replacing the container (Docker only)
+  app.get('/system/storage', () => core.storageInfo());
+
   app.get('/overview', () => core.overview());
 
   // Account credentials. The token itself is never returned by any endpoint.

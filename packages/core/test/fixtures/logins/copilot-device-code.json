@@ -1,0 +1,11 @@
+{
+  "command": "copilot login --device-code",
+  "stdin": "/dev/null",
+  "tty": false,
+  "exitCode": 143,
+  "stopped": "killed with SIGTERM to the process group 3 s after the code appeared",
+  "secondsRunning": 4.3,
+  "version": "GitHub Copilot CLI 1.0.93.",
+  "recordedAt": "2026-10-08",
+  "image": "agentry:fixes-test, plus gh 2.102.0 and glab 1.120.0 release binaries"
+}

@@ -131,12 +131,12 @@ const dirs = {
 // The other providers' state lives in the sandbox too, never in the real home: the homes are named
 // here and created by the specs that need a provider that was "used before" (e2e/specs/providers.spec.mjs)
 const providerHomes = { codex: join(sandbox, 'codex-home'), gemini: join(sandbox, 'gemini-home'), copilot: join(sandbox, 'copilot-home'), xdgConfig: join(sandbox, 'xdg-config'), xdgData: join(sandbox, 'xdg-data') };
-// Without a provider that works, the first-run Providers step stands in for the app on every page
+// Without setup recorded as seen, the setup assistant stands in for the app on every page
 // load, and no other spec could see the app. So the sandbox starts as a machine that finished that
-// step (`providersStepSeen`) and has one agent ready: Codex, a fake (e2e/fake-providers) reached by
+// step (`setupSeen`) and has one agent ready: Codex, a fake (e2e/fake-providers) reached by
 // the override in providers.json, not by PATH. The providers spec restores both before it ends.
 mkdirSync(dirs.dataDir, { recursive: true });
-writeFileSync(join(dirs.dataDir, 'app-settings.json'), `${JSON.stringify({ providersStepSeen: true }, null, 2)}\n`);
+writeFileSync(join(dirs.dataDir, 'app-settings.json'), `${JSON.stringify({ setupSeen: true }, null, 2)}\n`);
 writeFileSync(
   join(dirs.dataDir, 'providers.json'),
   `${JSON.stringify({ providers: { codex: { enabled: true, binaryPath: join(here, 'fake-providers', 'codex') } }, order: ['claude-code', 'codex', 'gemini', 'copilot', 'opencode'], defaultProvider: null }, null, 2)}\n`,

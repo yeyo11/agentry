@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-21T07:35:14Z
-updated_at: 2026-10-06T12:00:00Z
+updated_at: 2026-10-09T10:00:00Z
 tags:
     - deploy
     - docker
@@ -93,7 +93,7 @@ kubectl create secret generic agentry-claude --from-literal=CLAUDE_CODE_OAUTH_TO
 kubectl create secret generic agentry-token --from-literal=token="$(openssl rand -hex 32)"
 
 helm install agentry ./deploy/helm/agentry \
-  --set image.tag=0.15.2 \
+  --set image.tag=0.36.1 \
   --set claude.existingSecret=agentry-claude \
   --set auth.mode=token --set auth.token.existingSecret=agentry-token
 ```
@@ -114,39 +114,63 @@ starts. Do not scale it.
 The `auth.*` values seed a volume that has no `auth.json` yet. After that the settings saved in the UI
 win, so changing the value and upgrading does not change a running install.
 
-`tunnel.enabled` (default `false`) decides whether Settings → Remote access may serve the pod on a
-tailnet; see the next section. The deployment always writes `AGENTRY_TUNNEL` as `on` or `off`,
+`tunnel.enabled` (default `true`, as in the image) decides whether the pod runs its own
+`tailscaled` and Settings → Remote access may serve it on a tailnet; see the next section. The deployment always writes `AGENTRY_TUNNEL` as `on` or `off`,
 and `NOTES.txt` warns when it is on.
 
 ## The tunnel in Docker
 
 Settings → Remote access serves Agentry on the person's tailnet through the Tailscale CLI
-(`tailscale serve`, [tunnel.md](tunnel.md)). **In the image it is off unless the operator turns it
-on**:
+(`tailscale serve`, never Funnel; [tunnel.md](tunnel.md)). A container sees neither the host's
+`tailscale` CLI nor its daemon, so **the image runs a Tailscale of its own** (owner decision,
+2026-10-08), and the person signs it in from the app: the setup assistant's Access step or Settings
+→ Remote access, with a login link or an auth key ([setup.md](setup.md#tailscale)). Nobody needs a
+shell on the machine.
 
-```dotenv
-# .env, for Compose: env_file already hands it to the container
-AGENTRY_TUNNEL=on
-```
+- **What is in the image.** Tailscale's static linux amd64 build (`tailscale` and `tailscaled`,
+  `TAILSCALE_VERSION`, 1.102.4), from pkgs.tailscale.com, checked against the digest published beside
+  it like gh and glab.
+- **How it runs.** `docker/entrypoint.sh` starts `tailscaled --tun=userspace-networking` as the
+  image's user before the server, then `exec`s the server, which still receives `docker stop`.
+  Userspace networking needs no root, no `NET_ADMIN` and no `/dev/net/tun`, so the container needs
+  nothing added to its `docker run`, Compose service or pod spec. tailscaled ends with the container.
+- **Where its state is.** `/data/tailscale/` on the data volume: the node's state
+  (`tailscaled.state`, mode 0700 folder), its certificates, and `tailscaled.log`, written anew on
+  each start. A replaced container keeps its node, its name and its sign-in. The socket is the CLI's
+  default, `/run/tailscale/tailscaled.sock`, so `docker exec <container> tailscale status` works.
+- **The node's name** is `agentry` (`AGENTRY_TAILSCALE_HOSTNAME`); Tailscale adds a number when the
+  tailnet already has one.
+- **Serve in userspace networking.** The tailnet connection ends inside tailscaled's own network
+  stack, and Serve's proxy dials `http://127.0.0.1:8787` from the tailscaled process, which shares the
+  container's network, so the rule reaches the server as it does on a host. It is how Tailscale's own
+  container image runs Serve (`TS_USERSPACE` on by default, with `TS_SERVE_CONFIG`). Measured here:
+  the daemon starts in userspace mode as `node` and reports `NeedsLogin` with `TUN: false`; Serve end
+  to end needs a signed-in node and was not measured.
+- **Direct connections.** Without UDP 41641 published, tailnet peers reach the container through
+  Tailscale's relays (DERP): it works, a little slower. Publishing `41641/udp` lets them connect
+  directly.
+- **Logs Tailscale uploads.** tailscaled sends its own logs to Tailscale, as it does everywhere;
+  `TS_NO_LOGS_NO_SUPPORT=true` in the container's environment turns that off (and Tailscale's support
+  with it).
 
-With Helm, set `tunnel.enabled: true`. A source install and the desktop app have it on by default,
-and `AGENTRY_TUNNEL=off` turns it off there too. `AGENTRY_TUNNEL` accepts `on`/`1`/`true` and
-`off`/`0`/`false`, with empty or unset meaning the default. Any other value stops the server at
-startup.
+**Turning it off.** `AGENTRY_TUNNEL=off` in `.env` (or `tunnel.enabled: false` in the chart) starts no
+tailscaled and offers no tunnel; the tab says so and names the switch. A source install and the
+desktop app use the machine's own Tailscale, on by default, and `AGENTRY_TUNNEL=off` turns it off
+there too. `AGENTRY_TUNNEL` accepts `on`/`1`/`true` and `off`/`0`/`false`, with empty or unset meaning
+the default. Any other value stops the server at startup. In the image, the default follows the
+daemon: the server offers the tunnel because the entrypoint said it started one
+(`AGENTRY_TAILSCALE_MANAGED=1`); an image started with another entrypoint offers none.
 
-Why off here:
+What to know before you open it:
 
-- **The container cannot see the host's Tailscale.** The image ships no `tailscale` CLI, and the
-  host's `tailscaled` socket is not mounted, so turned on with nothing else the tab only says that
-  Tailscale is not installed. It takes a CLI in the image (`TAILSCALE_BIN`) and a daemon it can reach,
-  such as a Tailscale sidecar sharing its socket, and that is a deployment decision of its own.
 - **The tunnel goes around everything in front of the server.** Once it opens, the Serve rule reaches
   `127.0.0.1:8787` inside the container, so tailnet members come in around the port Compose publishes
   only on `127.0.0.1`, the `tls` profile's Caddy, and in Kubernetes the Service, the Ingress and any
   ingress NetworkPolicy. (The localhost.run tunnel this replaced was measured doing exactly that, from a
   container that published no port; the evidence is in [the plan](plans/tunnel.md#answer-the-tunnel-in-docker).)
-- **Operators decide ingress in their manifests**, and a pod that opens its own way in looks like a
-  backdoor to a security review, so Agentry's own switch stays off.
+- **Operators decide ingress in their manifests**, and a pod that opens its own way in can look like a
+  backdoor to a security review. Nothing opens by itself: a node has to be signed in, authentication
+  turned on, and the tunnel opened by someone. Where that is not wanted, turn it off as above.
 
 Turned on, the tunnel is the same as everywhere else. It refuses to open while the auth mode is
 `none`, even if `auth.mode` in the chart only seeded a volume and the UI changed it later: it checks
@@ -183,6 +207,58 @@ The image is built in two stages. The stage that runs holds one compiled JavaScr
 tree, no `node_modules` and no transpiler: `docker build -f docker/Dockerfile .` is unchanged for
 you, the image is smaller and it starts faster. pnpm is still installed, for the projects Claude
 works on under `/workspace`, not to start anything.
+
+**The other agents.** Codex, Gemini CLI, GitHub Copilot CLI and OpenCode are installed with npm,
+each pinned to a version inside the range its manifest declares
+(`packages/core/src/providers/*/manifest.ts`; a test fails when a pin leaves its range), so an image
+is the same tomorrow as today for them too. They sit in `/home/node/.npm-global/bin`, which is on the
+`PATH`. Override a pin with `--build-arg CODEX_VERSION=…`, `GEMINI_CLI_VERSION`, `COPILOT_VERSION`
+or `OPENCODE_VERSION` (compose passes them from `.env`); a version outside the range installs, and
+Settings → Providers says the driver was not written for it. Their sign-ins, settings and sessions
+are under `/data/provider-homes`, through `CODEX_HOME`, `GEMINI_CLI_HOME`, `COPILOT_HOME`,
+`XDG_CONFIG_HOME` and `XDG_DATA_HOME`, so the data volume keeps them; the server creates the folders
+on start, because Codex refuses a home that does not exist. `XDG_*` also moves what other tools keep
+there (git's global config under `~/.config/git`), and pnpm's store is held in the image through
+`npm_config_store_dir` so it does not grow the volume. The image is about 2.2 GB: the four agents ship
+native binaries, and gh and glab add about 90 MB.
+
+**The code hosts' and YouTrack's CLIs.** `gh` and `glab`, the only way Agentry reaches GitHub and
+GitLab ([[code-hosts.md]]), are in `/usr/local/bin`, taken from the vendors' linux amd64 release
+tarballs: `GH_VERSION` (2.102.0) and `GLAB_VERSION` (1.120.0), the versions the host recordings were
+made with. Each tarball is checked against a pinned SHA-256 (`GH_SHA256`, `GLAB_SHA256`), and that
+digest must also be the one in the vendor's published checksums file, so a bump is the version and
+the digest together; `docker/Dockerfile` carries the two commands that print it. JetBrains'
+`youtrack-app` ([[trackers.md]]) comes with the agents through npm, pinned as `YOUTRACK_APP_VERSION`
+(1.0.3). Their sign-ins live in `/data/provider-homes/gh` and `/data/provider-homes/glab` through
+`GH_CONFIG_DIR` and `GLAB_CONFIG_DIR`, which the server creates on start like the agents' homes. A
+container has no keyring, so both keep the token in plain text there (glab says so as it signs in,
+and its `config.yml` is mode 0600). They are signed in and out from the app, with a token or a device
+code ([setup.md](setup.md), [code-hosts.md](code-hosts.md#signing-in-from-agentry)). The YouTrack
+token is Agentry's own, kept in the secret vault below.
+
+**The secret vault and its key.** What a CLI reads from its environment (Claude Code's token or key,
+Gemini's, Copilot's and OpenCode's keys, YouTrack's address and token) is kept in
+`/data/secrets.json`, mode 0600, sealed with AES-256-GCM ([setup.md](setup.md#the-secret-vault)).
+The image sets `AGENTRY_DISTRIBUTION=docker`, so when the environment brings no
+`AGENTRY_SECRET_KEY` the server makes one on the first write and keeps it beside the data, in
+`/data/secret.key` (32 random bytes as hex, mode 0600). That key protects a copy of the files (a
+backup, a file sent by mistake), not the volume: whoever reads `/data` reads both. Settings →
+Security says which case a container is in. The recommended setup passes the key in the environment
+instead, kept somewhere other than the data volume:
+
+```bash
+openssl rand -hex 32   # once; keep it in your secret store
+docker run … -e AGENTRY_SECRET_KEY=<that hex> … ghcr.io/yeyo11/agentry
+```
+
+With Compose, put it in `.env` and add it to the service's `environment`; with the chart, `env:`
+takes it (as a plain value in the release: the chart has no Secret-backed field for it yet). The
+server drops it from its environment once read, so no child process inherits it. The environment's
+key wins over `secret.key`, and a value sealed with another key reads as absent: moving a container
+from the file key to one in the environment means entering its keys again in the app (then
+`secret.key` can be removed). Losing the key loses what it sealed, never more: the sign-ins gh, glab,
+Codex and Tailscale keep themselves are not in the vault. The whole model is in
+[security-model.md](security-model.md).
 
 The installer the build downloads, Claude Code's, is fetched to a file, checked against a SHA-256
 and only then run, so a compromised install script fails the build instead of running as root. The
@@ -227,7 +303,7 @@ Firebase project, no key of anyone else's.
   a log line and nothing else.
 - **No domain or proxy at hand?** On a machine with Tailscale, the [tunnel](tunnel.md) gives an HTTPS
   origin with a real certificate on the tailnet, and its address stays the same while the machine keeps
-  its name. In a container it needs a Tailscale the container can reach (above).
+  its name. In the image it is the container's own Tailscale, signed in from the app (above).
 - **In Kubernetes**, `push.json` sits on the same PersistentVolumeClaim as the rest of the data
   directory, which the chart keeps through `helm uninstall`. Bring your own Ingress, and terminate
   TLS there.
@@ -279,8 +355,9 @@ so the card lists the command for each way below, each under the setup it is for
   the folder that holds it: `docker compose pull && docker compose up -d`.
 - **The repository's own `docker-compose.yml`** builds the image locally (`image: agentry:dev`), so
   there is nothing to pull: `git pull && docker compose up -d --build`.
-- **`docker run`**: `docker pull ghcr.io/yeyo11/agentry`, then remove the container and run the same
-  command again. The volumes keep every chat, setting and credential.
+- **`docker run`**: `docker pull ghcr.io/yeyo11/agentry`, then remove the container and run the
+  command again, which has to name all three volumes (see
+  [Updating a container without losing anything](#updating-a-container-without-losing-anything)).
 - **Helm**: raise `image.tag` and `helm upgrade`.
 
 A page that stayed open across the update notices on its next reconnection to `/api/events`: the
@@ -290,6 +367,75 @@ safe. With a service worker in control, Reload first asks it to update and waits
 new one to take over, so the new build is served rather than the cached one. A lazy route whose file
 the new build no longer has shows the same banner instead of breaking. None of this needs a service
 worker, so it works on a plain `http://<lan-ip>:8787` too.
+
+## Updating a container without losing anything
+
+An update replaces the container: the image is pulled, the old container removed and a new one
+started from it. Whatever is not on a volume with a name goes with the old one. The image declares
+a volume for each of the three folders that matter, and Docker makes an anonymous one for each the
+command does not name, so a command that names fewer **still starts, and loses the rest at the
+next update**:
+
+| Folder | Holds | Lost when it is not named |
+| --- | --- | --- |
+| `/home/node/.claude` | transcripts of every chat, MCP servers, agents, skills, `CLAUDE.md`, settings | the history and the account setup |
+| `/data` | the wrapper's database and settings, uploads, the secret vault (`secrets.json`, and `secret.key` unless the key comes from the environment), the other agents', gh's and glab's sign-ins (`provider-homes/`) and the image's Tailscale node (`tailscale/`) | chats' records, schedules, the auth mode, every provider, GitHub and GitLab sign-in, the kept keys and the tailnet node |
+| `/workspace` | the projects the agents work on | the projects, if they live there |
+
+Start it with all three named, and a name for the container to replace:
+
+```bash
+docker run -d --init --name agentry --restart unless-stopped -p 127.0.0.1:8787:8787 \
+  -v agentry-config:/home/node/.claude -v agentry-data:/data -v agentry-workspace:/workspace \
+  ghcr.io/yeyo11/agentry
+```
+
+To update it: `docker pull ghcr.io/yeyo11/agentry && docker stop agentry && docker rm agentry`, then
+the same `docker run`. A named volume is reattached by name, so the new container finds everything.
+Do not add `-v` to `docker rm`: it removes the anonymous volumes too.
+
+**Checking.** `GET /api/system/storage` (and the warning at the top of Settings → Account, which
+reads it) says what each folder sits on: `persistent` for a named volume, a bind mount or a claim,
+`anonymous`, `container` (the container's own layer) or `temporary` (memory or an `emptyDir`).
+`atRisk` is true when any of them would not survive. It reads the mounts the server itself sees, so
+it works under any way of starting the container, and says nothing outside the Docker image. It
+cannot tell a named volume that is *new* from the one you meant: started from another folder,
+Compose finds three empty ones and reports them persistent.
+
+### Moving to named volumes
+
+If Settings says a folder is on an anonymous volume, the data is still there while the container
+exists, stopped or not. **Do not remove it yet.** Copy each folder into a named volume, then start
+the new container on those:
+
+```bash
+docker stop agentry
+for pair in "home/node/.claude:agentry-config" "data:agentry-data" "workspace:agentry-workspace"; do
+  docker run --rm --volumes-from agentry -v "${pair#*:}":/to alpine \
+    sh -c "cp -a /${pair%%:*}/. /to/"
+done
+docker rename agentry agentry-old
+# the docker run above, with the three named volumes
+```
+
+Check that the new one has your chats, then `docker rm -v agentry-old`.
+
+**Already replaced it?** `docker rm` without `-v` leaves the anonymous volumes behind, so what the old
+container held may still be on disk. `docker volume ls --filter dangling=true` lists them, 64-digit
+names and all; look inside one with `docker run --rm -v <name>:/v alpine ls /v` (`.claude` holds
+`projects/` and `sessions/`, `/data` holds `wrapper.db`) and copy it into a named volume with
+`docker run --rm -v <name>:/from -v agentry-config:/to alpine cp -a /from/. /to/`. Do not run
+`docker volume prune` before you have looked: it deletes exactly these. A container started with
+`-v agentry-data:/data` alone already has `/data` on a named volume: copy only the other two.
+
+**Compose.** The volumes are `<project>_claude-config` and `<project>_wrapper-data`, where the
+project is the folder's name, and `./workspace` is a folder next to the compose file. Set
+`COMPOSE_PROJECT_NAME` in `.env` before the first start so a move or a rename of the checkout does
+not leave the data behind under the old name.
+
+**Helm.** One claim holds all three through subPaths, and it is kept on `helm uninstall`: an upgrade
+needs nothing but the new `image.tag`. The tag the chart defaults to is the release it ships with
+and moves with every release.
 
 ## Health and restarts
 
@@ -326,4 +472,4 @@ Both orchestrators allow 30 s between `SIGTERM` and `SIGKILL` (`stop_grace_perio
 
 ## Related
 
-[[desktop.md]] · [[status.md]] · [[plans/mobile.md]] · [[plans/app-updates.md]] · [[tunnel.md]] · [[plans/tunnel.md]] · [[code-hosts.md]]
+[[desktop.md]] · [[status.md]] · [[plans/mobile.md]] · [[plans/app-updates.md]] · [[tunnel.md]] · [[plans/tunnel.md]] · [[code-hosts.md]] · [[container-state.md]] · [[setup.md]] · [[security-model.md]]

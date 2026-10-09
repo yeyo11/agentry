@@ -3,6 +3,7 @@ import type {
   AcceptAssistantProposalRequest,
   AddressReviewRequest,
   AgentryReleaseInfo,
+  StorageReport,
   AgentTranscript,
   ApiError,
   ApprovalState,
@@ -239,6 +240,11 @@ import type {
   WriteConfigFileRequest,
   WriteDocumentRequest,
   YoutrackCredentialsStatus,
+  LoginSession,
+  SetupState,
+  SetupTool,
+  SignOutResult,
+  StartLoginRequest,
   SaveDashboardLayoutRequest,
   StoredDashboardLayout,
 } from '@agentry/shared';
@@ -466,6 +472,7 @@ export const api = {
   checkCliVersion: () => request<CliVersionInfo>('/system/cli-version/check', { method: 'POST' }),
   release: (o: ReadOptions = {}) => request<AgentryReleaseInfo>('/system/release', o),
   checkRelease: () => request<AgentryReleaseInfo>('/system/release/check', { method: 'POST' }),
+  storage: (o: ReadOptions = {}) => request<StorageReport>('/system/storage', o),
   verifyAuth: () => request<AuthVerification>('/auth/verify', { method: 'POST' }),
   projects: (o: ReadOptions = {}) => request<Project[]>('/projects', o),
   projectCandidates: (o: ReadOptions = {}) => request<ProjectCandidate[]>('/projects/candidates', o),
@@ -989,6 +996,14 @@ export const api = {
   youtrackCredentials: (o: ReadOptions = {}) => request<YoutrackCredentialsStatus>('/trackers/youtrack/credentials', o),
   putYoutrackCredentials: (body: PutYoutrackCredentialsRequest) => request<YoutrackCredentialsStatus>('/trackers/youtrack/credentials', { method: 'PUT', body }),
   deleteYoutrackCredentials: () => request<YoutrackCredentialsStatus>('/trackers/youtrack/credentials', { method: 'DELETE' }),
+  /** What the first setup has done and what it has not */
+  setup: (o: ReadOptions = {}) => request<SetupState>('/setup', o),
+  markSetupSeen: () => request<SetupState>('/setup/seen', { method: 'POST' }),
+  /** A key login answers once the CLI and the readiness probe are done, which can take a while; a device one answers at once */
+  startLogin: (body: StartLoginRequest) => request<LoginSession>('/setup/logins', { method: 'POST', body, timeoutMs: 120_000 }),
+  login: (id: string, o: ReadOptions = {}) => request<LoginSession>(`/setup/logins/${enc(id)}`, o),
+  cancelLogin: (id: string) => request<LoginSession>(`/setup/logins/${enc(id)}`, { method: 'DELETE' }),
+  signOut: (tool: SetupTool, host?: string) => request<SignOutResult>(`/setup/credentials/${enc(tool)}${host ? `?host=${enc(host)}` : ''}`, { method: 'DELETE', timeoutMs: 120_000 }),
   /** The project's tracker, or null when it has none */
   projectTracker: (id: string, o: ReadOptions = {}) => request<ProjectTrackerSettings | null>(`/projects/${enc(id)}/tracker`, o),
   /** A null body clears the project's tracker */
@@ -1027,6 +1042,7 @@ export const keys = {
   auth: ['auth'] as const,
   cliVersion: ['cli-version'] as const,
   release: ['release'] as const,
+  storage: ['storage'] as const,
   providers: ['providers'] as const,
   providerSettings: ['providers', 'settings'] as const,
   providerModels: (id: string) => ['providers', id, 'models'] as const,
@@ -1043,6 +1059,8 @@ export const keys = {
   trackers: ['trackers'] as const,
   trackerSettings: ['trackers', 'settings'] as const,
   youtrackCredentials: ['trackers', 'youtrack', 'credentials'] as const,
+  setup: ['setup'] as const,
+  setupLogin: (id: string) => ['setup', 'logins', id] as const,
   projectTracker: (id: string) => ['project-tracker', id] as const,
   /** One page of a project's tracker query, under the project's prefix so an import or a readiness change makes every page stale */
   trackerIssues: (id: string, query: string, page: number) => ['project-tracker', id, 'issues', query, page] as const,

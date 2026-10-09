@@ -112,4 +112,15 @@ export const DOCKER_UPDATE_WAYS = [
   { way: 'compose', command: 'docker compose pull && docker compose up -d' },
   { way: 'checkout', command: 'git pull && docker compose up -d --build' },
 ] as const;
+/**
+ * Starts Agentry with all three folders on a volume with a name. The image declares `VOLUME` for
+ * each, so a command that names fewer still starts, with the rest on volumes Docker makes on its own
+ * and the next command does not reattach: replacing the container then loses the sign-in, the
+ * transcripts and the projects. The workspace is a named volume too, not `$PWD/workspace`, which
+ * is a different folder from wherever the command is run next.
+ */
+export const DOCKER_RUN_COMMAND =
+  'docker run -d --init --name agentry --restart unless-stopped -p 127.0.0.1:8787:8787 -v agentry-config:/home/node/.claude -v agentry-data:/data -v agentry-workspace:/workspace ghcr.io/yeyo11/agentry';
+/** What follows `docker pull`: the old container goes, the volumes stay */
+export const DOCKER_REPLACE_COMMAND = `docker stop agentry && docker rm agentry && ${DOCKER_RUN_COMMAND}`;
 export const SOURCE_UPDATE_COMMAND = 'git pull && pnpm install && pnpm build';

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseStored, pickValues, reconcile, sameValues, storageKey, withValues } from '../src/lib/list-params.ts';
+import { awaitedValues, parseStored, pickValues, reconcile, sameValues, sendSettled, stillCurrent, type Sent, storageKey, withValues } from '../src/lib/list-params.ts';
 
 const OWNED = ['q', 'state', 'sort'] as const;
 
@@ -51,4 +51,44 @@ test('list params: switching project brings that project’s values, unless the 
 test('list params: values compare by content', () => {
   assert.equal(sameValues({ a: '1', b: '2' }, { b: '2', a: '1' }), true);
   assert.equal(sameValues({ a: '1' }, { a: '1', b: '2' }), false);
+});
+
+test('list params: a reset made before the stored values reach the address is not undone', () => {
+  // The render read `q` from storage; "Show them all" cleared storage before the effect ran
+  const stored = { q: 'no-such-graph' };
+  const broughtBack = { ...reconcile({ url: {}, stored, scopeChanged: false, urlChanged: false }), stored };
+  assert.equal(stillCurrent(broughtBack, {}), false);
+  assert.equal(stillCurrent(broughtBack, { q: 'no-such-graph' }), true);
+});
+
+test('list params: a link’s values are not stored over a reset or a change made before they are', () => {
+  // A link carried `q` over an older stored value; storing it is what the effect does next
+  const stored = { q: 'older' };
+  const linked = { ...reconcile({ url: { q: 'linked' }, stored, scopeChanged: false, urlChanged: true }), stored };
+  assert.equal(linked.save, true);
+  assert.equal(stillCurrent(linked, { q: 'older' }), true);
+  // Reset cleared storage first: storing `linked` now would have the next render bring it back
+  assert.equal(stillCurrent(linked, {}), false);
+  // A change on the page stored its own values first
+  assert.equal(stillCurrent(linked, { q: 'typed' }), false);
+});
+
+test('list params: the render a patch causes shows what it sent, not the address it is replacing', () => {
+  // "All" on Chats: storage already holds no state, the address still says `state=working`
+  const sent = { values: {}, earlier: [{ state: 'working' }] };
+  assert.deepEqual(awaitedValues(sent, { state: 'working' }), {});
+  // Once the address shows what was sent, it is reconciled as usual
+  assert.equal(awaitedValues(sent, {}), null);
+  // An address no send left came from elsewhere (Back, a link) and wins
+  assert.equal(awaitedValues(sent, { state: 'idle' }), null);
+  assert.equal(awaitedValues(null, { state: 'working' }), null);
+});
+
+test('list params: sends made one after another are awaited until the last one lands', () => {
+  // Typed `a`, then cleared it again, before either navigation landed
+  const sent: Sent = { values: {}, earlier: [{}, { q: 'a' }] };
+  assert.deepEqual(awaitedValues(sent, { q: 'a' }), {});
+  assert.equal(sendSettled(sent, { q: 'a' }), false);
+  assert.equal(sendSettled(sent, {}), true);
+  assert.equal(sendSettled(sent, { q: 'elsewhere' }), true);
 });

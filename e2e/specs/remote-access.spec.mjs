@@ -40,6 +40,7 @@ const status = (state, extra = {}) => ({
   since: state === 'active' ? new Date().toISOString() : null,
   reason: null,
   enabled: true,
+  managed: false,
   tailscale: READY,
   port: 8443,
   settings: { startWithAgentry: false },

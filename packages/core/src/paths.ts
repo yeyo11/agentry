@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve, isAbsolute } from 'node:path';
 import type { AppSettingValues, PermissionMode } from '@agentry/shared';
 
 /**
@@ -27,12 +27,20 @@ export interface CoreConfig {
   /** The `tailscale` CLI the tunnel runs, from `TAILSCALE_BIN`: the one on the `PATH` unless someone points at another */
   tailscaleBin: string;
   /**
-   * Whether this deploy offers the tunnel, from `AGENTRY_TUNNEL`. On by default, and off by default
-   * in the Docker image (`AGENTRY_DISTRIBUTION=docker`): the container sees neither the host's
-   * `tailscale` CLI nor its daemon, and a way in around the port the operator published and their
-   * proxy is theirs to open (docs/plans/tunnel.md, "Answer: the tunnel in Docker").
+   * Whether this deploy offers the tunnel, from `AGENTRY_TUNNEL`. On by default. In the Docker image
+   * (`AGENTRY_DISTRIBUTION=docker`) the default follows `tailscaleManaged`: a container sees neither
+   * the host's `tailscale` CLI nor its daemon, so the tunnel is offered there only when the image's
+   * entrypoint started a `tailscaled` of Agentry's own (docs/deploy.md, "The tunnel in Docker").
    */
   tunnelEnabled: boolean;
+  /**
+   * Whether the `tailscaled` the CLI talks to is Agentry's own, from `AGENTRY_TAILSCALE_MANAGED`,
+   * which the image's entrypoint sets once it started one. Only then may the app sign it in and out:
+   * a machine's own Tailscale belongs to the person, and Agentry never runs `up` or `logout` on it.
+   */
+  tailscaleManaged: boolean;
+  /** The node name a managed `tailscaled` signs in with, from `AGENTRY_TAILSCALE_HOSTNAME`; `agentry` by default */
+  tailscaleHostname: string;
   /** The HTTPS port of Agentry's `tailscale serve` rule, from `AGENTRY_TUNNEL_PORT`; 8443 by default */
   tunnelPort: number;
   configDir: string;
@@ -42,7 +50,7 @@ export interface CoreConfig {
   workspaceDir: string;
   dataDir: string;
   defaultPermissionMode: PermissionMode;
-  providersStepSeen: boolean;
+  setupSeen: boolean;
   maxConcurrentRuns: number;
   /**
    * VAPID `sub` claim of every push the server signs: a `mailto:` or `https:` the push service can
@@ -61,6 +69,11 @@ export interface CoreConfig {
    * from `process.env` once read so no chat inherits it.
    */
   secretKey?: string;
+  /**
+   * How this Agentry was installed, from `AGENTRY_DISTRIBUTION` (lower case): `docker` makes the
+   * secret vault keep a key of its own beside the data when the environment brings none.
+   */
+  distribution?: string;
   /**
    * Host names this wrapper answers to besides loopback, from `AGENTRY_ALLOWED_HOSTS`, each either
    * a name or a `*.domain` pattern standing for its subdomains. Read here for the same reason as
@@ -119,6 +132,22 @@ function parseTunnelSwitch(value: string | undefined, fallback: boolean): boolea
   throw new Error(`AGENTRY_TUNNEL: '${value}' is neither on nor off`);
 }
 
+/** A flag the image's entrypoint sets: only an explicit yes counts */
+function parseYes(value: string | undefined): boolean {
+  return isSet(value) && ['on', '1', 'true', 'yes'].includes(value.trim().toLowerCase());
+}
+
+/**
+ * A node name for `tailscale up --hostname`: a DNS label, since it becomes the node's MagicDNS name.
+ * Anything else stops the wrapper rather than reaching the CLI.
+ */
+function parseTailscaleHostname(value: string | undefined): string {
+  if (!isSet(value)) return 'agentry';
+  const name = value.trim().toLowerCase();
+  if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(name)) throw new Error(`AGENTRY_TAILSCALE_HOSTNAME: '${value}' is not a host name (letters, digits and dashes, at most 63)`);
+  return name;
+}
+
 /** A port that is not a port is refused at startup rather than guessed: it decides where a rule lands in the node's shared Serve config. */
 function parseTunnelPort(value: string | undefined): number {
   if (!isSet(value)) return 8443;
@@ -127,11 +156,24 @@ function parseTunnelPort(value: string | undefined): number {
   return port;
 }
 
-function parseSeenSwitch(value: string): boolean {
+function parseSeenSwitch(name: string, value: string): boolean {
   const word = value.trim().toLowerCase();
   if (['on', '1', 'true'].includes(word)) return true;
   if (['off', '0', 'false'].includes(word)) return false;
-  throw new Error(`AGENTRY_PROVIDERS_STEP_SEEN: '${value}' is neither on nor off`);
+  throw new Error(`${name}: '${value}' is neither on nor off`);
+}
+
+/**
+ * The variable an install set before the setup assistant replaced the first-run Providers step. It
+ * still counts, so an install that saw the old step is not walked through the assistant again.
+ */
+export const OLD_SETUP_SEEN_ENV = 'AGENTRY_PROVIDERS_STEP_SEEN';
+
+/** `AGENTRY_SETUP_SEEN`, else the old variable, else nothing */
+function setupSeenFromEnv(env: NodeJS.ProcessEnv): boolean | null {
+  if (isSet(env.AGENTRY_SETUP_SEEN)) return parseSeenSwitch('AGENTRY_SETUP_SEEN', env.AGENTRY_SETUP_SEEN);
+  if (isSet(env[OLD_SETUP_SEEN_ENV])) return parseSeenSwitch(OLD_SETUP_SEEN_ENV, env[OLD_SETUP_SEEN_ENV]);
+  return null;
 }
 
 /** What a layered setting is when neither the environment nor `app-settings.json` says otherwise. */
@@ -139,7 +181,7 @@ export const DEFAULT_APP_SETTINGS: Readonly<AppSettingValues> = Object.freeze({
   allowedHosts: [],
   maxConcurrentRuns: 8,
   defaultPermissionMode: 'acceptEdits',
-  providersStepSeen: false,
+  setupSeen: false,
 });
 
 /** pnpm runs scripts from the package dir; default state dirs belong at the monorepo root instead. */
@@ -162,8 +204,43 @@ export const APP_SETTING_ENV = {
   allowedHosts: 'AGENTRY_ALLOWED_HOSTS',
   maxConcurrentRuns: 'AGENTRY_MAX_CONCURRENT_RUNS',
   defaultPermissionMode: 'AGENTRY_DEFAULT_PERMISSION_MODE',
-  providersStepSeen: 'AGENTRY_PROVIDERS_STEP_SEEN',
+  setupSeen: 'AGENTRY_SETUP_SEEN',
 } as const satisfies Record<keyof AppSettingValues, string>;
+
+/**
+ * The variables that say where each agent, and each code host's CLI, keeps its sign-in, settings
+ * and sessions. The Docker image points them inside the data directory so the one volume holds them
+ * (docs/deploy.md); the CLIs would otherwise write to their default homes, which are gone with the
+ * container.
+ */
+export const PROVIDER_HOME_ENV = [
+  'CODEX_HOME',
+  'GEMINI_CLI_HOME',
+  'COPILOT_HOME',
+  'XDG_CONFIG_HOME',
+  'XDG_DATA_HOME',
+  'GH_CONFIG_DIR',
+  'GLAB_CONFIG_DIR',
+] as const;
+
+/**
+ * Creates the provider homes that live inside the data directory. A fresh volume has none of them,
+ * and Codex refuses to start with a `CODEX_HOME` that does not exist. A home somewhere else is the
+ * operator's own and is left to them. Returns what it created or found, for the log.
+ */
+export function ensureProviderHomes(env: NodeJS.ProcessEnv, dataDir: string): string[] {
+  const homes: string[] = [];
+  for (const name of PROVIDER_HOME_ENV) {
+    const value = env[name];
+    if (!isSet(value) || !isAbsolute(value)) continue;
+    const home = resolve(value);
+    const inside = relative(dataDir, home);
+    if (inside === '' || inside.startsWith('..') || isAbsolute(inside)) continue;
+    mkdirSync(home, { recursive: true });
+    homes.push(home);
+  }
+  return homes;
+}
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
   const configDir = resolve(env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude'));
@@ -176,10 +253,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
   for (const dir of [workspaceDir, dataDir]) {
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   }
+  ensureProviderHomes(env, dataDir);
   return {
     claudeBin: env.CLAUDE_BIN ?? 'claude',
     tailscaleBin: env.TAILSCALE_BIN?.trim() || 'tailscale',
-    tunnelEnabled: parseTunnelSwitch(env.AGENTRY_TUNNEL, env.AGENTRY_DISTRIBUTION?.trim().toLowerCase() !== 'docker'),
+    tunnelEnabled: parseTunnelSwitch(env.AGENTRY_TUNNEL, env.AGENTRY_DISTRIBUTION?.trim().toLowerCase() !== 'docker' || parseYes(env.AGENTRY_TAILSCALE_MANAGED)),
+    tailscaleManaged: parseYes(env.AGENTRY_TAILSCALE_MANAGED),
+    tailscaleHostname: parseTailscaleHostname(env.AGENTRY_TAILSCALE_HOSTNAME),
     tunnelPort: parseTunnelPort(env.AGENTRY_TUNNEL_PORT),
     configDir,
     globalConfigFile,
@@ -187,12 +267,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
     workspaceDir,
     dataDir,
     defaultPermissionMode: isSet(env.AGENTRY_DEFAULT_PERMISSION_MODE) ? (env.AGENTRY_DEFAULT_PERMISSION_MODE.trim() as PermissionMode) : DEFAULT_APP_SETTINGS.defaultPermissionMode,
-    providersStepSeen: isSet(env.AGENTRY_PROVIDERS_STEP_SEEN) ? parseSeenSwitch(env.AGENTRY_PROVIDERS_STEP_SEEN) : DEFAULT_APP_SETTINGS.providersStepSeen,
+    setupSeen: setupSeenFromEnv(env) ?? DEFAULT_APP_SETTINGS.setupSeen,
     maxConcurrentRuns: isSet(env.AGENTRY_MAX_CONCURRENT_RUNS) ? Number(env.AGENTRY_MAX_CONCURRENT_RUNS) : DEFAULT_APP_SETTINGS.maxConcurrentRuns,
     pushSubject: env.AGENTRY_PUSH_SUBJECT?.trim() || 'https://github.com/yeyo11/agentry',
     allowedHosts: parseAllowedHosts(env.AGENTRY_ALLOWED_HOSTS),
-    settingsFromEnv: new Set((Object.keys(APP_SETTING_ENV) as (keyof AppSettingValues)[]).filter((key) => isSet(env[APP_SETTING_ENV[key]]))),
+    settingsFromEnv: new Set((Object.keys(APP_SETTING_ENV) as (keyof AppSettingValues)[]).filter((key) => isSet(env[APP_SETTING_ENV[key]]) || (key === 'setupSeen' && isSet(env[OLD_SETUP_SEEN_ENV])))),
     authEnv: Object.fromEntries(AUTH_ENV_KEYS.flatMap((key) => (env[key] === undefined ? [] : [[key, env[key]]]))) as AuthEnv,
     ...(isSet(env.AGENTRY_SECRET_KEY) ? { secretKey: env.AGENTRY_SECRET_KEY.trim() } : {}),
+    ...(isSet(env.AGENTRY_DISTRIBUTION) ? { distribution: env.AGENTRY_DISTRIBUTION.trim().toLowerCase() } : {}),
   };
 }

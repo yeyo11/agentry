@@ -9,6 +9,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { keys } from '../src/api';
 import { TooltipProvider } from '@agentry/ui/components/controls';
 import { ToastProvider } from '@agentry/ui/components/Toast';
+import { ConfirmProvider } from '@agentry/ui/components/Dialog';
 import i18n from '../src/i18n';
 import { en, es } from '../src/i18n/resources';
 import { IntegrationsTab } from '../src/pages/config/IntegrationsTab';
@@ -80,9 +81,11 @@ async function render(list: CodeHostStatus[], trackers: TrackerStatus[] = defaul
     <QueryClientProvider client={client}>
       <TooltipProvider>
         <ToastProvider>
-          <MemoryRouter>
-            <IntegrationsTab />
-          </MemoryRouter>
+          <ConfirmProvider>
+            <MemoryRouter>
+              <IntegrationsTab />
+            </MemoryRouter>
+          </ConfirmProvider>
         </ToastProvider>
       </TooltipProvider>
     </QueryClientProvider>,

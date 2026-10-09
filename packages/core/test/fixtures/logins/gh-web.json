@@ -1,0 +1,11 @@
+{
+  "command": "gh auth login --web -h github.com --git-protocol https --skip-ssh-key",
+  "stdin": "/dev/null",
+  "tty": false,
+  "exitCode": 143,
+  "stopped": "killed with SIGTERM to the process group 3 s after the code appeared",
+  "secondsRunning": 3.5,
+  "version": "gh version 2.102.0 (2026-09-30)",
+  "recordedAt": "2026-10-08",
+  "image": "agentry:fixes-test, plus gh 2.102.0 and glab 1.120.0 release binaries"
+}

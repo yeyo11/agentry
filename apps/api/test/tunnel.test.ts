@@ -100,6 +100,8 @@ test('the tunnel starts stopped, with a ready Tailscale read from its CLI and st
     since: null,
     reason: null,
     enabled: true,
+    // A source install's Tailscale is the machine's, never signed in by Agentry
+    managed: false,
     tailscale: { state: 'ready', version: '1.102.4', host: NODE, reason: null },
     port: 8443,
     settings: { startWithAgentry: false },

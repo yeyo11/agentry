@@ -25,6 +25,8 @@ import type { ProviderConfigHome, ProviderManifest, ProviderSignedInUsers } from
 import { installDirs, resolveCommand } from './path.ts';
 import { limitAt, type HandshakeLimits, type ProviderLimits } from './limits.ts';
 import { DRIVER_TRANSPORTS, ProviderRegistry } from './registry.ts';
+import { childEnv } from '../child-env.ts';
+import { ghHasToken } from './gh-fallback.ts';
 
 /** One TTL for every provider: what a detection saw is served until it is this old */
 export const PROVIDERS_TTL_MS = 5 * 60 * 1000;
@@ -65,6 +67,11 @@ export interface ProviderDetectorDeps {
   commandAliases?: Record<ProviderId, string[]>;
   /** The PATH to search; defaults to the current one plus the install directories */
   resolvePath?: () => Promise<string>;
+  /**
+   * Whether the GitHub CLI on `env`'s PATH holds a token for a host, for a manifest with a
+   * `ghFallback`; `gh auth token` through the code-host execution layer by default
+   */
+  ghHasToken?: (hostname: string, env: NodeJS.ProcessEnv, timeoutMs: number) => Promise<boolean>;
   env?: NodeJS.ProcessEnv;
   home?: string;
   platform?: NodeJS.Platform;
@@ -495,7 +502,8 @@ export class ProviderDetector {
       if (!(await resolveCommand(required, searchPath))) return make('unknown', 'missing-required-command', { binaryPath });
     }
 
-    const env = { ...this.env, PATH: searchPath };
+    // The probes and the handshake see what a chat of this provider will: the vault's key included
+    const env = childEnv(manifest.id, { ...this.env, PATH: searchPath });
     const [version, auth]: [VersionProbe, AuthProbe] = manifest.id === 'claude-code'
       ? await this.probeClaude(manifest, binaryPath, override, claude)
       : await Promise.all([this.probeVersion(manifest, binaryPath, env), this.probeAuth(manifest, binaryPath, env)]);
@@ -631,9 +639,19 @@ export class ProviderDetector {
     if (probe.kind === 'none') return { kind: 'none' };
     if (probe.kind === 'file') {
       const read = readCredentialsFile(this.locate(probe.file), probe.users);
-      // A token in the environment signs the CLI in without a file, and nothing that costs nothing
-      // says whether it is valid: that is the same not knowing as a provider with no probe
-      if (read.kind === 'signed-out' && manifest.auth.credentialEnv.some((name) => Boolean(env[name]))) return { kind: 'none' };
+      if (read.kind === 'ok') return read;
+      // A token in the environment signs the CLI in without a file. Where the vendor documents it as
+      // the sign-in for programs (Copilot) it reads as one; elsewhere nothing that costs nothing says
+      // whether it is valid, which is the same not knowing as a provider with no probe
+      if (manifest.auth.credentialEnv.some((name) => Boolean(env[name]))) {
+        if (manifest.auth.credentialEnvSignsIn) return { kind: 'ok', account: null };
+        if (read.kind === 'signed-out') return { kind: 'none' };
+      }
+      // The last source the vendor documents: the GitHub CLI's sign-in, asked the way the CLI asks it
+      const fallback = manifest.auth.ghFallback;
+      if (fallback && (await (this.deps.ghHasToken ?? ghHasToken)(fallback.hostname, env, this.probeTimeoutMs).catch(() => false))) {
+        return { kind: 'ok', account: null };
+      }
       return read;
     }
     const res = await this.exec(binaryPath, probe.args, env);

@@ -1,12 +1,14 @@
 ---
 created_at: 2026-09-27T18:00:00Z
-updated_at: 2026-10-06T12:00:00Z
+updated_at: 2026-10-09T10:00:00Z
 tags:
     - tunnel
     - remote-access
     - security
     - mobile
     - tailscale
+    - docker
+    - setup
 ---
 # Remote access through Tailscale
 
@@ -22,9 +24,11 @@ measured, is in [the plan](plans/tunnel.md#the-move-to-tailscale-2026-10-06).
 
 ## The rule it follows
 
-Tailscale is reached **only through its CLI**: its flags and its `--json` output, with the session
-the person already has. No LocalAPI socket, no tsnet, no sign-in of Agentry's own, and Agentry never
-runs `tailscale up`, `login` or `set`. It is the same rule Agentry follows for the agents
+Tailscale is reached **only through its CLI**: its flags and its `--json` output. No LocalAPI socket,
+no tsnet. A machine's own Tailscale (a source checkout, the desktop app) is used with the session the
+person gave it, and Agentry never runs `tailscale up`, `login`, `logout` or `set` on it. Only the
+`tailscaled` the Docker image starts for Agentry (**managed**, below) is signed in and out from the
+app, with the same CLI's documented `up` and `logout`. It is the same rule Agentry follows for the agents
 ([providers.md](providers.md)) and the code hosts ([code-hosts.md](code-hosts.md)). The calls:
 
 | Call | Why |
@@ -34,6 +38,9 @@ runs `tailscale up`, `login` or `set`. It is the same rule Agentry follows for t
 | `tailscale serve status --json` | The node's Serve config, read before adding, after adding, and before removing |
 | `tailscale serve --bg --yes --https=<port> http://127.0.0.1:<agentry port>` | Adds Agentry's rule |
 | `tailscale serve --yes --https=<port> off` | Removes it |
+| `tailscale up --reset --hostname=<name>` | Managed only: the sign-in with a login URL ([setup.md](setup.md#tailscale)) |
+| `tailscale up --reset --hostname=<name> --auth-key=file:<path>` | Managed only: the sign-in with an auth key, read from a 0600 file removed right after |
+| `tailscale logout` | Managed only: the sign-out, after the tunnel closed |
 
 The tunnel does not touch Claude Code. It forwards HTTP to Agentry's own port.
 
@@ -52,6 +59,12 @@ The whole section depends on Tailscale. Until it is ready, the tab offers neithe
 | `stopped` | `tunnel.tailscaleNotConnected` | Any other state than `Running` (`Stopped`…): run `tailscale up` |
 | `httpsDisabled` | `tunnel.magicDnsOff`, `tunnel.httpsOff` | MagicDNS or HTTPS certificates are off: **Open DNS settings** (`https://login.tailscale.com/admin/dns`) |
 | `ready` | – | The tunnel card, with the node's name |
+
+Where the daemon is managed, `loggedOut` and `stopped` offer **Sign in to Tailscale** instead of a
+command (the shared sign-in panel, inside the card: a login link or an auth key), the reasons are
+`tunnel.managedLoggedOut`, `tunnel.managedNotConnected` and `tunnel.managedDaemonDown` (restart the
+container), and a signed-in node shows **Sign out** beside its name. `GET /api/tunnel` says
+`managed: true`.
 
 Every state but `missing` has **Check again**, which reads the status again: `GET /api/tunnel` asks
 the CLI anew when its last answer is more than two seconds old, so a `tailscale up` in a terminal
@@ -174,13 +187,16 @@ Funnel would give one, and is left out on purpose (owner decision, 2026-10-06).
 | --- | --- | --- |
 | Source checkout | on | `AGENTRY_TUNNEL=off` |
 | Desktop app | on (Tailscale installed separately; not a `.deb` dependency) | `AGENTRY_TUNNEL=off` |
-| Docker image | **off** | `AGENTRY_TUNNEL=on` in `.env` |
-| Helm chart | **off** | `tunnel.enabled: true` |
+| Docker image | on, with a tailscaled of its own (managed) | `AGENTRY_TUNNEL=off` in `.env` |
+| Helm chart | on, as the image | `tunnel.enabled: false` |
 
-In a container the host's `tailscale` CLI and `tailscaled` are not visible, so turned on with
-nothing else the tab says Tailscale is not installed; and once it opens, the rule goes around the
-published port, the proxy and the Ingress. [deploy.md](deploy.md#the-tunnel-in-docker) has the
-details. `AGENTRY_TUNNEL` accepts `on`, `1`, `true`, `off`, `0` and `false`; empty or unset means the
+In a container the host's `tailscale` CLI and `tailscaled` are not visible, so since 2026-10-08 the
+image carries both and its entrypoint starts `tailscaled --tun=userspace-networking`, with its state
+in `/data/tailscale/` and the CLI's default socket, and tells the server with
+`AGENTRY_TAILSCALE_MANAGED=1`. The person signs it in from the app; with `AGENTRY_TUNNEL=off` no
+daemon starts. Once it opens, the rule goes around the published port, the proxy and the Ingress.
+[deploy.md](deploy.md#the-tunnel-in-docker) has the details, including how Serve works in userspace
+networking. `AGENTRY_TUNNEL` accepts `on`, `1`, `true`, `off`, `0` and `false`; empty or unset means the
 default, and any other value stops Agentry at startup. `TAILSCALE_BIN` points at another CLI (the
 macOS app keeps it inside the bundle).
 
@@ -192,12 +208,14 @@ macOS app keeps it inside the bundle).
 | "Open the tunnel when Agentry starts" | `<dataDir>/tunnel-settings.json` |
 | The node's name on the allowlist | memory only, never a file |
 | The code | `packages/core/src/tunnel.ts`, `apps/api/src/routes/tunnel.ts`, `apps/web/src/pages/config/RemoteAccessTab.tsx` |
-| The fake CLI the tests and the e2e suite use | `packages/core/test/fixtures/fake-tailscale.mjs` |
+| The fake CLI the tests and the e2e suite use | `packages/core/test/fixtures/fake-tailscale.mjs` (also `up` and `logout`) |
+| The image's node state and daemon log | `/data/tailscale/` |
+| The image's entrypoint | `docker/entrypoint.sh` |
 
 ## API
 
 `GET /api/tunnel` returns the state, `url` and `since` (only while `active`), `reason` (only while
-`failed`), `enabled`, `tailscale` (`state`, `version`, `host`, `reason`), `port` and the settings.
+`failed`), `enabled`, `managed`, `tailscale` (`state`, `version`, `host`, `reason`), `port` and the settings.
 `PUT /api/tunnel/settings` takes `{ startWithAgentry }`, and `POST /api/tunnel/start` and
 `POST /api/tunnel/stop` open and close the tunnel. A stop that arrives through the tunnel itself
 answers first, with `state: 'stopping'`, and removes the rule a second after the reply is sent.
@@ -207,4 +225,4 @@ never contains the address, and it never becomes a notification. The rows are in
 
 ## Related
 
-[[plans/tunnel.md]] · [[code-hosts.md]] · [[layered-settings.md]] · [[deploy.md]] · [[desktop.md]] · [[notifications.md]] · [[plans/mobile.md]] · [[providers.md]] · [[security-model]]
+[[plans/tunnel.md]] · [[setup.md]] · [[plans/in-app-setup.md]] · [[code-hosts.md]] · [[layered-settings.md]] · [[deploy.md]] · [[desktop.md]] · [[notifications.md]] · [[plans/mobile.md]] · [[providers.md]] · [[security-model.md]]

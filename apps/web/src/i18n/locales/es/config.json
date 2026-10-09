@@ -207,7 +207,8 @@
     "remote": "Esta página está conectada al Agentry de {{host}}, que funciona en otra máquina. Quien lo gestione puede actualizarlo:",
     "docker": {
       "intro": "El contenedor no puede reemplazar su propia imagen. El comando depende de cómo se arrancó:",
-      "run": "Con docker run: descarga la imagen, elimina el contenedor y vuelve a ejecutar el mismo docker run. Los volúmenes conservan los chats, los ajustes y las credenciales.",
+      "run": "Con docker run: descarga la imagen y sustituye el contenedor. Los volúmenes conservan los chats, los ajustes y las credenciales, pero solo los que el comando nombró: un contenedor que se arrancó sin nombrar las tres carpetas pierde lo que hay en las demás al eliminarlo.",
+      "replace": "Después sustituye el contenedor nombrando los tres volúmenes (ajustes y chats, datos, proyectos):",
       "compose": "Con un archivo compose que usa la imagen publicada (ghcr.io/yeyo11/agentry), desde su carpeta:",
       "checkout": "Con el docker-compose.yml del propio repositorio, que construye la imagen, desde tu copia del repositorio:",
       "helm": "Con el chart de Helm: sube image.tag y ejecuta helm upgrade."
@@ -237,7 +238,21 @@
       "running_other": "{{count}} orquestaciones están en marcha"
     },
     "availableTag": "Actualización disponible",
-    "upToDateTag": "Al día"
+    "upToDateTag": "Al día",
+    "storage": {
+      "title": "Este contenedor perdería sus datos al actualizarlo",
+      "body": "Actualizar sustituye el contenedor, y lo que no está en un volumen con nombre se va con él: el inicio de sesión, todas las transcripciones y los proyectos. Estas carpetas no están en uno:",
+      "config": "Ajustes y chats",
+      "data": "Datos de Agentry",
+      "workspace": "Proyectos",
+      "kind": {
+        "anonymous": "en un volumen que Docker creó por su cuenta",
+        "container": "dentro del contenedor",
+        "temporary": "en almacenamiento temporal"
+      },
+      "fix": "Arráncalo con los tres volúmenes con nombre, como en este comando:",
+      "move": "No elimines el contenedor actual antes de copiar lo que tiene dentro: docs/deploy.md, «Moving to named volumes», trae los comandos."
+    }
   },
   "account": {
     "tokenSource": {
@@ -248,9 +263,6 @@
       "credentialsFile": "archivo de credenciales de un inicio de sesión interactivo",
       "none": "ninguna"
     },
-    "saved": "Credencial guardada",
-    "savedDetail": "Se aplica a todas las ejecuciones nuevas. Compruébala con una petición real.",
-    "saveFailed": "No se ha podido guardar la credencial",
     "removed": "Credencial guardada eliminada",
     "removeFailed": "No se ha podido quitar la credencial",
     "works": "La cuenta funciona",
@@ -268,15 +280,7 @@
     "remove": "Quitar la credencial guardada",
     "working": "Funciona",
     "failed": "Error: {{detail}}",
-    "loggedInNote": "“Sesión iniciada” solo significa que hay una credencial configurada; el CLI no la valida. Usa la comprobación para asegurarte.",
-    "setCredential": "Configurar la credencial",
-    "type": "Tipo",
-    "oauthOption": "Token OAuth de la suscripción (claude setup-token)",
-    "apiKeyOption": "Clave de API de Anthropic",
-    "oauthToken": "Token OAuth",
-    "apiKey": "Clave de API",
-    "secretHint": "Se guarda en el volumen de datos del wrapper y se aplica a todas las ejecuciones nuevas. Sustituye a las credenciales del entorno del contenedor y la API nunca la devuelve.",
-    "save": "Guardar la credencial"
+    "loggedInNote": "“Sesión iniciada” solo significa que hay una credencial configurada; el CLI no la valida. Usa la comprobación para asegurarte."
   },
   "instructions": {
     "variants": {
@@ -1120,7 +1124,13 @@
       "openDns": "Abrir los ajustes de DNS",
       "update": "Actualizar Tailscale",
       "recheck": "Volver a comprobar",
-      "version": "Tailscale {{version}}"
+      "version": "Tailscale {{version}}",
+      "managed": {
+        "title": "Conecta este Agentry a tu tailnet",
+        "body": "Este contenedor ejecuta un Tailscale propio para Agentry. Inicia sesión en tu tailnet con un enlace que abres en cualquier dispositivo o con una clave de autenticación; la sesión se conserva aunque se sustituya el contenedor.",
+        "signIn": "Iniciar sesión en Tailscale",
+        "daemonDown": "Reinicia el contenedor: Agentry arranca este Tailscale con él."
+      }
     },
     "disabled": {
       "tag": "desactivado",

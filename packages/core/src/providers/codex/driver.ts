@@ -21,6 +21,7 @@ import { codexManifest } from './manifest.ts';
 import { DEFAULT_MODELS } from './models.ts';
 import { translateCodexPolicy } from './policy.ts';
 import { CodexSession } from './session.ts';
+import { childEnv } from '../../child-env.ts';
 
 /** What Codex delegates is reported as task events as it happens; there is nothing to track across processes. */
 class CodexBranches implements BranchTracker {
@@ -83,7 +84,7 @@ export class CodexDriver implements ProviderDriver {
   launch(spec: SessionLaunch): LaunchPlan {
     this.launched = spec;
     const { args, env, unsetEnv } = codexManifest.launch ?? { args: [], env: {}, unsetEnv: [] };
-    return { bin: binaryOf(this.bin), args: [...args], env: { ...process.env, ...env }, unsetEnv: [...unsetEnv] };
+    return { bin: binaryOf(this.bin), args: [...args], env: { ...childEnv('codex'), ...env }, unsetEnv: [...unsetEnv] };
   }
 
   attach(io: SessionIO, sink: (event: DriverEvent) => void, _branches: BranchTracker): DriverSession {

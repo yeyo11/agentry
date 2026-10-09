@@ -13,6 +13,9 @@ import { useToast } from '@agentry/ui/components/Toast';
 import { Card, CopyButton, Empty, ErrorBox, Skeleton, Tag } from '@agentry/ui/components/ui';
 import { timeAgo } from '@agentry/ui/lib/format';
 import { localized } from '../../lib/server-strings';
+import { tailscaleActions } from '../../lib/setup';
+import { SignInPanel } from '../../components/setup/SignInPanel';
+import { SignOutButton } from '../../components/setup/SignOutButton';
 
 /** Where Tailscale is downloaded, and where a tailnet turns MagicDNS and HTTPS certificates on. */
 export const TAILSCALE_DOWNLOAD_URL = 'https://tailscale.com/download';
@@ -190,15 +193,19 @@ export function TunnelPanel({
     );
   }
 
-  if (status.tailscale.state !== 'ready') return <TailscaleNotReady readiness={status.tailscale} checking={checking} onRecheck={onRecheck} />;
+  if (status.tailscale.state !== 'ready') return <TailscaleNotReady readiness={status.tailscale} managed={status.managed} checking={checking} onRecheck={onRecheck} />;
 
   return (
     <Card title={t('remote.title')} actions={<Tag tone={TUNNEL_TONE[state]}>{t(`remote.states.${state}`)}</Tag>}>
       <p className="small muted">{t('remote.intro')}</p>
       {status.tailscale.host && (
-        <p className="small muted" data-testid="tunnel-node">
-          {t('remote.node')} <span className="mono">{status.tailscale.host}</span>
-        </p>
+        <div className="tunnel-node">
+          <p className="small muted" data-testid="tunnel-node">
+            {t('remote.node')} <span className="mono">{status.tailscale.host}</span>
+          </p>
+          {/* Only the Tailscale Agentry runs is Agentry's to sign out; closing the tunnel comes first, on the server */}
+          {status.managed && <SignOutButton tool="tailscale" label="Tailscale" small />}
+        </div>
       )}
 
       {state === 'active' && status.url && <TunnelAddress url={status.url} since={status.since} />}
@@ -253,9 +260,11 @@ export function TunnelPanel({
 /**
  * Tailscale is not there or not ready. Not installed is the one state with an illustration, since
  * the whole section depends on it; the others say what is missing in the server's words (by code),
- * and what the person can do about it: a command to run, or the admin page to open.
+ * and what the person can do about it: a command to run, or the admin page to open. Where Agentry
+ * runs the daemon itself (`managed`, the Docker image) there is no terminal to run anything in, so
+ * a signed-out node is signed in here instead, with the shared panel.
  */
-function TailscaleNotReady({ readiness, checking, onRecheck }: { readiness: TailscaleReadiness; checking: boolean; onRecheck: () => void }) {
+function TailscaleNotReady({ readiness, managed, checking, onRecheck }: { readiness: TailscaleReadiness; managed: boolean; checking: boolean; onRecheck: () => void }) {
   const { t } = useTranslation('config');
   const recheck = (
     <button type="button" className="btn" disabled={checking} onClick={onRecheck} data-testid="tunnel-recheck">
@@ -291,8 +300,10 @@ function TailscaleNotReady({ readiness, checking, onRecheck }: { readiness: Tail
 
   const { state } = readiness;
   if (state === 'ready') return null;
+  if (managed && (state === 'loggedOut' || state === 'stopped')) return <ManagedSignIn readiness={readiness} checking={checking} onRecheck={onRecheck} />;
   // Only the command that is the same everywhere Tailscale runs; how tailscaled is started is the system's
-  const command = state === 'loggedOut' || state === 'stopped' ? 'tailscale up' : null;
+  const command = !managed && (state === 'loggedOut' || state === 'stopped') ? 'tailscale up' : null;
+  const { signOut } = tailscaleActions({ enabled: true, managed, state });
   const link =
     state === 'httpsDisabled'
       ? { href: TAILSCALE_DNS_ADMIN_URL, label: t('remote.tailscale.openDns') }
@@ -312,6 +323,7 @@ function TailscaleNotReady({ readiness, checking, onRecheck }: { readiness: Tail
               {t('remote.tailscale.runThis')} <code className="mono">{command}</code>
             </div>
           )}
+          {managed && state === 'daemonDown' && <div className="small">{t('remote.tailscale.managed.daemonDown')}</div>}
           <div className="form-actions">
             {link && (
               <a className="btn btn-small" href={link.href} target="_blank" rel="noreferrer">
@@ -320,9 +332,45 @@ function TailscaleNotReady({ readiness, checking, onRecheck }: { readiness: Tail
               </a>
             )}
             {recheck}
+            {signOut && <SignOutButton tool="tailscale" label="Tailscale" small />}
           </div>
         </div>
       </div>
+      {readiness.version && <p className="small muted">{t('remote.tailscale.version', { version: readiness.version })}</p>}
+    </Card>
+  );
+}
+
+/**
+ * The Tailscale Agentry runs is signed out: the card says so and offers Sign in, which opens the
+ * shared panel inside it (a link to open on any device, or an auth key). It never asks for a link on
+ * its own: a visit to the tab is not a sign-in.
+ */
+function ManagedSignIn({ readiness, checking, onRecheck }: { readiness: TailscaleReadiness; checking: boolean; onRecheck: () => void }) {
+  const { t } = useTranslation('config');
+  const [open, setOpen] = useState(false);
+  const state = readiness.state === 'stopped' ? 'stopped' : 'loggedOut';
+  return (
+    <Card title={t('remote.title')} actions={<Tag tone="warn">{t(`remote.tailscale.tags.${state}`)}</Tag>}>
+      <p className="small muted">{t('remote.intro')}</p>
+      <div className="alert alert-warn" role="status" data-testid={`tunnel-tailscale-${state}`}>
+        <TriangleAlert {...ICON} className="alert-icon" />
+        <div className="alert-body">
+          <strong>{t('remote.tailscale.managed.title')}</strong>
+          <div className="small">{t('remote.tailscale.managed.body')}</div>
+          {!open && (
+            <div className="form-actions">
+              <button type="button" className="btn btn-primary btn-small" data-testid="tunnel-sign-in" onClick={() => setOpen(true)}>
+                {t('remote.tailscale.managed.signIn')}
+              </button>
+              <button type="button" className="btn btn-small" disabled={checking} onClick={onRecheck} data-testid="tunnel-recheck">
+                {t('remote.tailscale.recheck')}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+      {open && <SignInPanel tool="tailscale" label="Tailscale" layout="card" closable onClose={() => setOpen(false)} />}
       {readiness.version && <p className="small muted">{t('remote.tailscale.version', { version: readiness.version })}</p>}
     </Card>
   );

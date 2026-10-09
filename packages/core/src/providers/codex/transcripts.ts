@@ -18,6 +18,7 @@ import { TranscriptUnavailable, type TranscriptStore } from '../transcripts.ts';
 import { codexManifest } from './manifest.ts';
 import type { ThreadItem } from './protocol/types.ts';
 import { JsonRpc, RpcError } from './rpc.ts';
+import { childEnv } from '../../child-env.ts';
 
 /** How long the reader process outlives its last call: a list and a page in a row share one. */
 const IDLE_MS = 60_000;
@@ -151,7 +152,7 @@ export class CodexTranscripts implements TranscriptStore {
   private start(): Reader {
     const bin = binaryOf(this.opts.bin ?? codexManifest.commands.names[0] ?? 'codex');
     const args = this.opts.args ?? codexManifest.launch?.args ?? ['app-server'];
-    const proc = spawn(bin, [...args], { env: { ...process.env, ...codexManifest.launch?.env, ...this.opts.env }, stdio: 'pipe' });
+    const proc = spawn(bin, [...args], { env: { ...childEnv('codex'), ...codexManifest.launch?.env, ...this.opts.env }, stdio: 'pipe' });
     const rpc = new JsonRpc((line) => proc.stdin.write(line), {
       request: (id) => rpc.fail(id, -32601, 'Agentry answers no requests while reading history'),
       notification: () => {},

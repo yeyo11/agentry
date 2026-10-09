@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { after, describe, test } from 'node:test';
 import type { ModelOption, ToolPolicy } from '@agentry/shared';
+import { useVaultForChildren } from '../src/child-env.ts';
 import { AcpDriver } from '../src/providers/acp/driver.ts';
 import { neutralRequest, optionFor } from '../src/providers/acp/permissions.ts';
 import { translateCopilotPolicy } from '../src/providers/acp/policy-copilot.ts';
@@ -81,6 +82,26 @@ describe('launch', () => {
     const plan = new AcpDriver(manifest('copilot')).launch(spec());
     assert.deepEqual(plan.args.slice(0, 3), ['--acp', '--no-auto-update', '--no-remote']);
     assert.equal(plan.env.COPILOT_AUTO_UPDATE, 'false');
+  });
+
+  test('Copilot gets the token Agentry keeps in its environment, never argv, and sees gh\'s config dir for its gh fallback', () => {
+    const token = 'github_pat_11AAAA_reaches_copilot_env';
+    const release = useVaultForChildren({ get: (tool): Record<string, string> => (tool === 'copilot' ? { COPILOT_GITHUB_TOKEN: token } : {}) });
+    const saved = process.env.GH_CONFIG_DIR;
+    process.env.GH_CONFIG_DIR = '/data/provider-homes/gh';
+    try {
+      const plan = new AcpDriver(manifest('copilot')).launch(spec());
+      assert.equal(plan.env.COPILOT_GITHUB_TOKEN, token);
+      assert.equal(plan.env.GH_CONFIG_DIR, '/data/provider-homes/gh', 'Copilot runs `gh auth token` with the same config gh signed in to');
+      assert.ok(!plan.args.join(' ').includes(token));
+      assert.ok(!plan.unsetEnv.includes('GH_CONFIG_DIR') && !plan.unsetEnv.includes('COPILOT_GITHUB_TOKEN'));
+      // Another agent never gets Copilot's token
+      assert.equal(new AcpDriver(manifest('gemini'), { dataDir: join(root, 'vault-data') }).launch(spec()).env.COPILOT_GITHUB_TOKEN, process.env.COPILOT_GITHUB_TOKEN);
+    } finally {
+      if (saved === undefined) delete process.env.GH_CONFIG_DIR;
+      else process.env.GH_CONFIG_DIR = saved;
+      release();
+    }
   });
 
   test('Copilot gets the policy as flags, and a git push denial that outranks every allow', () => {

@@ -60,9 +60,13 @@ export function ProjectScopeProvider({ children }: { children: ReactNode }) {
   const [stored, setStored] = useState<string | null>(read);
   const linked = params.get(PARAM);
 
+  // What storage held when this address was rendered: a project picked in the top bar before the
+  // effect below runs (a slow main thread delays it past a click) has written its own, and wins
+  const storedAtLink = read();
+
   // A deep link wins over what was chosen before, and becomes the choice
   useEffect(() => {
-    if (!linked) return;
+    if (!linked || read() !== storedAtLink) return;
     const id = linked === ALL_PROJECTS ? null : linked;
     setStored(id);
     write(id);

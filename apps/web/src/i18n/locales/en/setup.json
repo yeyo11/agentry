@@ -1,0 +1,200 @@
+{
+  "label": "Setup · step {{n}} of {{total}}",
+  "skipAll": "Skip setup",
+  "labelPhone": "{{n}} of {{total}} · {{name}}",
+  "steps": {
+    "aria": "Setup steps",
+    "access": "Access",
+    "agents": "Agents",
+    "code": "Code and work items",
+    "done": "Done",
+    "skipped": "skipped"
+  },
+  "foot": {
+    "back": "Back",
+    "skip": "Skip",
+    "continue": "Continue",
+    "start": "Start using Agentry",
+    "ready_one": "{{count}} of {{total}} ready",
+    "ready_other": "{{count}} of {{total}} ready",
+    "later": "You can change it any time in Settings → Security."
+  },
+  "access": {
+    "title": "Who can open Agentry",
+    "intro": {
+      "none": "Right now anyone who reaches this port can use it. If Agentry runs on a server or on a network, ask for a token.",
+      "token": "Every request has to carry the token. Keep it that way if Agentry runs on a server or on a network.",
+      "oidc": "Every request has to carry a sign-in from your identity provider (OIDC)."
+    },
+    "introPhone": "If it runs on a server or on a network, ask for a token.",
+    "body": "Every request has to carry the token. With “None”, anyone who reaches the port can use Agentry: fine on your own computer, not on a network.",
+    "oidc": "OIDC is on. You change it in Settings → Security.",
+    "more": "OIDC and the read-only mode are in Settings → Security.",
+    "shownOnceBody": "It is shown only this once. This browser already uses it; anything else that calls the API will need it.",
+    "generateAnother": "Generate another",
+    "readOnly": "Agentry is in read-only mode: the access cannot be changed from here."
+  },
+  "remote": {
+    "aria": "Remote access",
+    "name": "Tailscale",
+    "meta": "Reach Agentry from your phone, on your tailnet",
+    "node": "On the tailnet as {{host}}",
+    "reason": {
+      "signedIn": "Signed in. You open the tunnel in Settings → Remote access, once the access above asks for a token.",
+      "loggedOut": "Not signed in to a tailnet yet. Sign in with a link or an auth key.",
+      "stopped": "Signed in, but not connected. Sign in again to connect it.",
+      "daemonDown": "The Tailscale service of this container is not answering. Restart the container.",
+      "machine": "Tailscale on this machine is yours to sign in, with its app or tailscale up. Agentry uses it as it is.",
+      "missing": "Tailscale is not installed on this machine."
+    }
+  },
+  "agents": {
+    "title": "Sign in to your agents",
+    "intro": "Each agent uses its own account. Sign in here, with a code or a key: there is no need to open a terminal on the server.",
+    "introPhone": "With a code or a key, without opening a terminal on the server.",
+    "aria": "Agents"
+  },
+  "code": {
+    "title": "Connect your code and your work items",
+    "intro": "GitHub and GitLab for your projects' PRs and MRs; YouTrack to bring in its issues. All of it is optional.",
+    "introPhone": "GitHub and GitLab for PRs and MRs; YouTrack for its issues. All of it is optional.",
+    "aria": "Code and work items"
+  },
+  "done": {
+    "title": "Agentry is ready",
+    "intro": "This is what got done. What you skipped is still in Settings, in the same panel you saw here, and this assistant does not come back.",
+    "introPhone": "What you skipped is still in Settings, in the same panel.",
+    "aria": "Summary",
+    "access": "Access",
+    "skipped": "Skipped",
+    "open": "Open",
+    "onHost": "{{user}} on {{host}}",
+    "noAccount": "No account",
+    "notConnected": "Not connected",
+    "where": {
+      "security": "Settings → Security",
+      "providers": "Settings → Providers",
+      "integrations": "Settings → Integrations",
+      "remote": "Settings → Remote access"
+    }
+  },
+  "panel": {
+    "title": "Sign in to {{label}}",
+    "method": "How to sign in",
+    "methods": {
+      "device": "Code",
+      "key": "Key",
+      "link": "Link"
+    },
+    "variable": "What you will paste",
+    "variableProvider": "Provider of the key",
+    "variables": {
+      "oauthToken": "OAuth token",
+      "apiKey": "API key"
+    },
+    "host": "Host",
+    "hostAria": "{{label}} host",
+    "pasteKey": "Paste the key",
+    "pasteToken": "Paste the token",
+    "field": {
+      "codex": "OpenAI API key",
+      "gemini": "Gemini API key",
+      "copilot": "GitHub token",
+      "gh": "Personal access token",
+      "glab": "Personal access token",
+      "tailscale": "Tailscale auth key"
+    },
+    "link": {
+      "claude-code": "How the token is made",
+      "codex": "Create a key at platform.openai.com",
+      "gemini": "Create a key at aistudio.google.com",
+      "copilot": "Create a token at github.com",
+      "gh": "Create a token at {{host}}",
+      "glab": "Create a token at {{host}}",
+      "tailscale": "Create an auth key in the Tailscale admin console"
+    },
+    "hint": {
+      "envSealed": "Kept encrypted, and only {{label}}'s processes receive it. It is not shown again.",
+      "envPlain": "Kept in a file only the server's user can read, and only {{label}}'s processes receive it. It is not shown again.",
+      "opencode": "OpenCode uses the key of the provider you choose; Agentry keeps it and hands it over in that variable.",
+      "codex": "Codex keeps it in its own configuration; Agentry keeps no copy.",
+      "copilot": "A fine-grained token with the Copilot Requests permission; a classic token (ghp_…) does not work.",
+      "gh": "With the repo, read:org and workflow scopes. gh keeps it in its own configuration; Agentry keeps no copy.",
+      "glab": "With the api and write_repository scopes. glab keeps it in its own configuration; Agentry keeps no copy.",
+      "tailscale": "One use is enough: Tailscale keeps this machine signed in with a key of its own, and Agentry keeps no copy. It reaches Tailscale through a file only it can read, removed right after."
+    },
+    "claude": "Claude Code has no sign-in Agentry can do for you. On <b>your own computer</b>, where you already use Claude, run <code>claude setup-token</code> in a terminal: it opens the browser, you sign in with your subscription, and it shows you a token that lasts a year. Paste it here.",
+    "claudeApiKey": "An Anthropic API key bills the API account it belongs to, not your subscription.",
+    "save": "Save and check",
+    "saving": "Checking…",
+    "cancel": "Cancel",
+    "getCode": "Get a code",
+    "codexNote": "If ChatGPT does not let you in with a code, first turn on device code sign-in in your ChatGPT account's security settings.",
+    "codexLink": "Open ChatGPT's settings",
+    "viaNote": "{{label}} uses your {{via}} sign-in ({{cli}}). This code signs {{cli}} in to {{host}}, and {{label}} works with it from then on.",
+    "refused": {
+      "classicToken": "Copilot does not take a classic token (ghp_…). Create a fine-grained one with the Copilot Requests permission."
+    },
+    "starting": "Asking {{label}} for a code…",
+    "startingLink": "Asking {{label}} for a sign-in link…",
+    "open": "Open this page on any device:",
+    "type": "Type this code and approve the access.",
+    "codeAria": "{{label}} code",
+    "copyCode": "Copy the code",
+    "linkAria": "{{label}} sign-in link",
+    "openLink": "Open this link on any device where you can sign in to Tailscale:",
+    "approveLink": "Sign in and connect this machine to your tailnet. There is no code to type.",
+    "copyLink": "Copy the link",
+    "waiting": "Waiting for you to approve",
+    "expiresIn": "expires in {{left}}",
+    "opensNewTab": "opens in a new tab",
+    "fail": {
+      "cli-refused": "{{label}} refused the sign-in. If it was a key, check it is right and has not expired.",
+      "not-signed-in": "The command finished, but {{label}} is still signed out.",
+      "no-code": "{{label}} finished without showing a code. Try a key.",
+      "cli-missing": "{{label}}'s program is not on this machine.",
+      "spawn-failed": "{{label}} could not be started.",
+      "timeout": "{{label}} did not answer in time and Agentry stopped it.",
+      "expired": "The code expired: nobody approved it within 15 minutes."
+    },
+    "action": {
+      "retry": "Retry",
+      "use-key": "Use a key",
+      "install": "See install",
+      "new-code": "Get another code"
+    },
+    "signedIn": "Signed in to {{label}}",
+    "startFailed": "Could not start the sign-in"
+  },
+  "row": {
+    "signIn": "Sign in",
+    "signInAria": "Sign in to {{label}}",
+    "addHost": "Add another host"
+  },
+  "signOut": {
+    "action": "Sign out",
+    "aria": "Sign out of {{label}}",
+    "title": "Sign out of {{label}}?",
+    "body": "Agentry stops using {{label}} until someone signs in again, and its chats that are running may fail.",
+    "bodyKey": "Agentry forgets the key it keeps for {{label}}. If {{label}} has no other sign-in, it stops working and its running chats may fail.",
+    "bodyHost": "{{cli}} forgets its sign-in to {{host}}. Agentry cannot read or merge the PRs or MRs there until someone signs in again.",
+    "done": "Signed out of {{label}}",
+    "failed": "Could not sign out of {{label}}",
+    "unsupported": "{{label}} documents no way to sign out from a program."
+  },
+  "secrets": {
+    "title": "Secrets",
+    "sealed": "encrypted",
+    "plain": "not encrypted",
+    "body": "The agents' keys, YouTrack's token and what you paste when you sign in are kept encrypted in <mono>secrets.json</mono>, and each one reaches only its own tool's processes. They are never shown, in a log or in an answer of the API.",
+    "bodyPlain": "The agents' keys, YouTrack's token and what you paste when you sign in are kept in <mono>secrets.json</mono>, which only the server's user can read, and each one reaches only its own tool's processes. They are never shown, in a log or in an answer of the API.",
+    "besideTitle": "The key is next to the data",
+    "besideBody": "Agentry made it in its data folder (<mono>secret.key</mono>) because it was given none. It protects a copy of the files, such as a backup, but not the volume: whoever reads the volume has both.",
+    "recommend": "Recommended: pass the key in the <mono>AGENTRY_SECRET_KEY</mono> environment variable and keep it outside the volume.",
+    "plainTitle": "Secrets are kept unencrypted",
+    "plainBody": "There is no key (a desktop app without a keyring, or an install from source), so values are kept as they are, in a file with 0600 permissions. Pass a key in <mono>AGENTRY_SECRET_KEY</mono> to encrypt them.",
+    "how": "How to pass the key",
+    "setupTitle": "The keys you save are encrypted, but the key is next to the data",
+    "setupBody": "It protects a copy of the files, not the volume. Pass the key in <mono>AGENTRY_SECRET_KEY</mono> so it lives outside it."
+  }
+}

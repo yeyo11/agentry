@@ -1234,5 +1234,107 @@
     "title": "Móvil · Decisiones, área de proveedores",
     "w": 390,
     "h": 844
+  },
+  {
+    "file": "DSConfiguracion.html",
+    "title": "Design system · Configuración: el panel de inicio de sesión",
+    "w": 1440,
+    "h": 1980
+  },
+  {
+    "file": "DesktopConfiguracionAcceso.html",
+    "title": "Desktop · Configuración, acceso",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopConfiguracionAgentes.html",
+    "title": "Desktop · Configuración, agentes: Codex esperando el código",
+    "w": 1440,
+    "h": 1100
+  },
+  {
+    "file": "DesktopConfiguracionAgentesClave.html",
+    "title": "Desktop · Configuración, agentes: el token de Claude Code",
+    "w": 1440,
+    "h": 1100
+  },
+  {
+    "file": "DesktopConfiguracionAgentesFallo.html",
+    "title": "Desktop · Configuración, agentes: código caducado",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopConfiguracionIntegraciones.html",
+    "title": "Desktop · Configuración, código y tareas",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopConfiguracionListo.html",
+    "title": "Desktop · Configuración, listo",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopAjustesSeguridad.html",
+    "title": "Desktop · Ajustes, seguridad y secretos",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileConfiguracionAcceso.html",
+    "title": "Móvil · Configuración, acceso",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileConfiguracionAgentes.html",
+    "title": "Móvil · Configuración, agentes",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileConfiguracionAgentesCodigo.html",
+    "title": "Móvil · Configuración, Codex esperando el código",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileConfiguracionAgentesClave.html",
+    "title": "Móvil · Configuración, el token de Claude Code",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileConfiguracionAgentesFallo.html",
+    "title": "Móvil · Configuración, código caducado",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileConfiguracionIntegraciones.html",
+    "title": "Móvil · Configuración, código y tareas",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileConfiguracionIntegracionesClave.html",
+    "title": "Móvil · Configuración, el token de GitLab",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileConfiguracionListo.html",
+    "title": "Móvil · Configuración, listo",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileAjustesSeguridad.html",
+    "title": "Móvil · Ajustes, seguridad y secretos",
+    "w": 390,
+    "h": 844
   }
 ]

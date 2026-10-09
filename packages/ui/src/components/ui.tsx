@@ -188,17 +188,23 @@ export function usePageTitle(title: string | undefined): void {
   }, [title]);
 }
 
-export function CopyButton({ text, label }: { text: string; label?: string }) {
+/**
+ * Copies `text`. An icon button by default; with `text` shown (`shown`), a neutral button that reads
+ * "Copy" beside the icon, for the one thing on a panel the person has to carry elsewhere (a
+ * device code, a token shown once).
+ */
+export function CopyButton({ text, label, shown = false, className = '' }: { text: string; label?: string; shown?: boolean; className?: string }) {
   const { t } = useTranslation(['primitives', 'common']);
   const [copied, setCopied] = useState(false);
   const [failed, setFailed] = useState(false);
   const name = label ?? t('ui.copy');
+  const word = copied ? t('ui.copied') : failed ? t('ui.copyFailed') : name;
   return (
-    <Tooltip content={copied ? t('ui.copied') : failed ? t('ui.copyFailed') : name}>
+    <Tooltip content={shown ? undefined : word}>
       <button
         type="button"
-        className="icon-btn"
-        aria-label={copied ? t('ui.copied') : failed ? t('ui.copyFailed') : name}
+        className={`${shown ? 'btn' : 'icon-btn'} ${className}`.trim()}
+        aria-label={word}
         onClick={() => {
           void copyText(text).then((done) => {
             setCopied(done);
@@ -222,6 +228,7 @@ export function CopyButton({ text, label }: { text: string; label?: string }) {
             {copied ? <Check {...ICON_SM} /> : <Copy {...ICON_SM} />}
           </motion.span>
         </AnimatePresence>
+        {shown && <span aria-hidden>{copied ? t('ui.copied') : t('ui.copy')}</span>}
       </button>
     </Tooltip>
   );

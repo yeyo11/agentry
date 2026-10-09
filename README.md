@@ -29,8 +29,15 @@ agent when one runs out of quota — without giving up a single thing the CLI ca
 Agentry drives it through the CLI and nothing else.
 
 ```bash
-docker run -p 127.0.0.1:8787:8787 -v agentry-data:/data ghcr.io/yeyo11/agentry
+docker run -d --init --name agentry --restart unless-stopped -p 127.0.0.1:8787:8787 \
+  -v agentry-config:/home/node/.claude -v agentry-data:/data -v agentry-workspace:/workspace \
+  ghcr.io/yeyo11/agentry
 ```
+
+Name all three volumes: the image declares each as a volume, so a command that names fewer still
+starts, with the others on volumes Docker made on its own, and replacing the container to update
+starts again with empty ones. [Updating](docs/deploy.md#updating-a-container-without-losing-anything)
+says how, and Settings → Account warns when a container was started that way.
 
 ### What you get
 
@@ -220,13 +227,21 @@ claude setup-token
 Then run the published image, pasting that token in:
 
 ```bash
-docker run -d --init -p 127.0.0.1:8787:8787 \
+docker run -d --init --name agentry --restart unless-stopped -p 127.0.0.1:8787:8787 \
   -e CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat-... \
   -v agentry-config:/home/node/.claude \
   -v agentry-data:/data \
-  -v "$PWD/workspace:/workspace" \
+  -v agentry-workspace:/workspace \
   ghcr.io/yeyo11/agentry
 ```
+
+The workspace is a named volume too. A folder of your own (`-v "$HOME/projects:/workspace"`) works
+as well, as an absolute path: a relative one such as `$PWD/workspace` is a different folder from
+wherever you run the command next.
+
+The image carries Claude Code, Codex, Gemini CLI, GitHub Copilot CLI and OpenCode, each at the
+version Agentry's driver was written for. Their sign-ins live under `/data`, so the same three
+volumes keep them: Settings → Providers shows which ones are signed in.
 
 The UI and the API reference are on <http://localhost:8787> — the panel at `/`, the interactive
 OpenAPI docs at `/docs`. Everything else is configured from the UI.
@@ -266,11 +281,13 @@ Volumes:
 | Volume (`docker run` / compose) | Mount | Purpose |
 | --- | --- | --- |
 | `agentry-config` / `claude-config` | `/home/node/.claude` | The whole account setup: `settings.json`, `.claude.json` (MCP servers), `CLAUDE.md`, agents, skills, commands and session transcripts |
-| `./workspace` | `/workspace` | Projects Claude works on (default `cwd` for runs) |
-| `agentry-data` / `wrapper-data` | `/data` | Wrapper state. Rows in the SQLite store (`wrapper.db`): chats and their executions, orchestrations, plans, each provider's usage limit, the moves and waits between providers, command durations, schedule runs, the supervisor's proposals, the installs registered for Web Push and the audit log. Settings-shaped files: `providers.json` (the order, the limit settings and the model mapping), `auth.json` (the auth mode and the hash of the token, mode 600), `credentials.json` (the runtime credential, mode 600), `tool-presets.json` (the presets and the default), `orchestration-templates.json`, `schedules.json`, `supervisor.json`, `cli-version.json`, `release.json` (what the last Agentry release check learned) and `push.json` (the VAPID keypair, mode 600). `uploads/` holds attachments and `mcp/` the per-chat MCP config files (mode 600: they can hold a server's secrets) |
+| `./workspace` / `agentry-workspace` | `/workspace` | Projects Claude works on (default `cwd` for runs) |
+| `agentry-data` / `wrapper-data` | `/data` | Wrapper state. Rows in the SQLite store (`wrapper.db`): chats and their executions, orchestrations, plans, each provider's usage limit, the moves and waits between providers, command durations, schedule runs, the supervisor's proposals, the installs registered for Web Push and the audit log. Settings-shaped files: `providers.json` (the order, the limit settings and the model mapping), `auth.json` (the auth mode and the hash of the token, mode 600), `secrets.json` (the sealed secret vault: every key and token given in the setup, mode 600) and `secret.key` (the vault's key when `AGENTRY_SECRET_KEY` is not set, mode 600; see [docs/security-model.md](docs/security-model.md)), `tool-presets.json` (the presets and the default), `orchestration-templates.json`, `schedules.json`, `supervisor.json`, `cli-version.json`, `release.json` (what the last Agentry release check learned) and `push.json` (the VAPID keypair, mode 600). `uploads/` holds attachments, `mcp/` the per-chat MCP config files (mode 600: they can hold a server's secrets) and `provider-homes/` the sign-in, settings and sessions of Codex, Gemini, Copilot and OpenCode, and the GitHub and GitLab sign-ins of `gh` and `glab`, in the Docker image (`CODEX_HOME`, `GEMINI_CLI_HOME`, `COPILOT_HOME`, `XDG_*`, `GH_CONFIG_DIR` and `GLAB_CONFIG_DIR` point there) |
 
 The compose file keeps its original volume names so an existing setup keeps its data; `docker compose`
-prefixes them with the project name (`agentry_wrapper-data`…).
+prefixes them with the project name (`agentry_wrapper-data`…), which is the folder's name unless
+`COMPOSE_PROJECT_NAME` is set. Run from another folder, it would start with three empty volumes: set
+`COMPOSE_PROJECT_NAME` in `.env` once, before the first start.
 
 ## Desktop app (Linux)
 
@@ -404,9 +421,10 @@ transpiler.
 | `CLAUDE_CONFIG_DIR` | `~/.claude` | Claude config dir (`/home/node/.claude` in the image) |
 | `AGENTRY_WORKSPACE_DIR` | `./workspace` | Default working directory for runs |
 | `AGENTRY_DATA_DIR` | `./data` | Wrapper state |
+| `AGENTRY_SECRET_KEY` | – | 32 bytes as hex: the key the secret vault (`secrets.json`) seals the keys and tokens Agentry hands a CLI with. The desktop app passes its own. Without it the Docker image makes one beside the data on the first write (`secret.key`, mode 600), which protects a copy of the files but not the volume, so passing it here is the recommended setup; a source install without it keeps the values plain at 0600. The server drops it from its environment once read |
 | `AGENTRY_DEFAULT_PERMISSION_MODE` | `acceptEdits` (`bypassPermissions` in the image) | Mode for runs that do not set one. Without the variable it is editable in Settings → Security and applies to the next run; set, it is shown read-only there. Empty counts as unset |
 | `AGENTRY_MAX_CONCURRENT_RUNS` | `8` | Max simultaneous `claude` processes (1 to 64). Editable in Settings → Security unless set here, like the mode above. Empty counts as unset |
-| `AGENTRY_PROVIDERS_STEP_SEEN` | off | `on` records that the first-run Providers step was answered, so it is only shown again when no provider is ready. Without the variable the step writes it to `app-settings.json` when it is continued or skipped. Empty counts as unset |
+| `AGENTRY_SETUP_SEEN` | off | `on` records that the setup assistant was finished or skipped. Without the variable the assistant writes it to `app-settings.json` (`POST /api/setup/seen`). The older `AGENTRY_PROVIDERS_STEP_SEEN`, and a `providersStepSeen` already stored, still count. Empty counts as unset |
 | `AGENTRY_PUSH_SUBJECT` | `https://github.com/yeyo11/agentry` | The VAPID `sub` claim of every Web Push this server signs: a `mailto:` or `https:` a push service can complain to, naming a real domain — Apple refuses the whole JWT with `403 BadJwtToken` for something like `mailto:agentry@localhost`. Changing it takes effect on the next start, keypair and registered installs untouched |
 | `AGENTRY_AUTH_MODE` | `none` | `none`, `token` or `oidc`. **Seeds** an install that has no `auth.json` yet; after that the setting saved from the UI wins. See [Securing it](#securing-it) |
 | `AGENTRY_AUTH_TOKEN` | – | The bearer token to seed with when the mode is `token`. Only its SHA-256 is stored |
@@ -422,7 +440,9 @@ transpiler.
 | `AGENTRY_PID_FILE` | `/tmp/agentry.pid` in the image | Where the server writes its pid, so the image's healthcheck can end a wedged server |
 | `AGENTRY_HEALTH_RESTART_AFTER` | `3` | Consecutive failed health probes (30 s apart) after which the container restarts itself |
 | `AGENTRY_ALLOWED_HOSTS` | – (loopback only) | Comma-separated host names this wrapper answers to besides loopback, each a name or a `*.domain` pattern standing for that domain's subdomains. A `Host` that matches none of them is refused `421` before the credential is read. Ports and letter case are ignored; `GET /api/health` is exempt. Behind a proxy, name the public host here or everything answers `421`. Its hosts are fixed; more can be added in Settings → Security, without a restart ([docs/layered-settings.md](docs/layered-settings.md)); a running tunnel's exact host is added on its own |
-| `AGENTRY_TUNNEL` | on (off in the image) | Whether Settings → Remote access may serve Agentry on the tailnet through `tailscale serve`: `on`/`1`/`true` or `off`/`0`/`false`, empty meaning the default; anything else stops the server at startup. A container sees neither the host's `tailscale` CLI nor its daemon, which is why it is off there. See [docs/tunnel.md](docs/tunnel.md) |
+| `AGENTRY_TUNNEL` | on | Whether Settings → Remote access may serve Agentry on the tailnet through `tailscale serve`: `on`/`1`/`true` or `off`/`0`/`false`, empty meaning the default; anything else stops the server at startup. In the image, `off` also keeps the entrypoint from starting its own tailscaled. See [docs/tunnel.md](docs/tunnel.md) |
+| `AGENTRY_TAILSCALE_MANAGED` | set by the image's entrypoint | `1` when the tailscaled behind the CLI is Agentry's own (the image's), which the app then signs in and out. Not for setting by hand |
+| `AGENTRY_TAILSCALE_HOSTNAME` | `agentry` | The node's name when the image's Tailscale signs in (`tailscale up --hostname`); a DNS label, or the server stops at startup |
 | `AGENTRY_TUNNEL_PORT` | `8443` | The HTTPS port of Agentry's Serve rule on the tailnet name, kept off 443 so a Serve rule of your own is never touched. Not a port between 1 and 65535 stops the server at startup |
 | `TAILSCALE_BIN` | `tailscale` | The Tailscale CLI the tunnel runs |
 | `AGENTRY_CORS_ORIGIN` | – (CORS off) | Comma-separated origins (or `*`, which echoes the caller) for external browser clients. The event streams obey this list too. The bundled UI never needs it: in dev it uses the Vite `/api` proxy, in production it is same-origin |
@@ -543,10 +563,11 @@ what is and is not protected.
   security contexts, `auth.mode` (`none`, `token`, `oidc`) and `auth.readOnly`. There is no Ingress
   template; bring your own — and if it gives the pod a host name, put that name in
   `AGENTRY_ALLOWED_HOSTS` through the chart's `env`.
-- **The tunnel** (Settings → Remote access) is off in the image and the chart unless you turn it on
-  (`AGENTRY_TUNNEL=on`, or `tunnel.enabled: true`). The image ships no `tailscale` CLI and sees no
-  tailscaled, so it only works with a Tailscale the container can reach, and then it goes around the
-  published port, the proxy and the Ingress.
+- **The tunnel** (Settings → Remote access): the image runs a Tailscale of its own in userspace
+  networking, with its node on the data volume, and you sign it in from the app with a login link or
+  an auth key. Once open it goes around the published port, the proxy and the Ingress; turn it off
+  with `AGENTRY_TUNNEL=off` (or `tunnel.enabled: false`). See
+  [docs/deploy.md](docs/deploy.md#the-tunnel-in-docker).
 - **A pinned Claude Code**: the image installs a fixed version and Settings → Account says when a
   newer one is published, with how to move. The check reads the npm registry on demand and once a
   day.
@@ -581,13 +602,15 @@ Types live in [`packages/shared/src/types.ts`](packages/shared/src/types.ts).
 | POST | `/system/cli-version/check` | Check the npm registry for a newer Claude Code now (also done once a day) |
 | GET | `/system/release` | Agentry in use, the newest release, how this server was installed (`distribution`), as the last check left it (never asks GitHub) |
 | POST | `/system/release/check` | Check GitHub for a newer Agentry release now (also done once a day) |
+| GET | `/system/storage` | In a Docker install, whether the Claude config dir, the data dir and the workspace sit on a persistent volume or would be lost when the container is replaced (`persistent`, `anonymous`, `container`, `temporary`); `atRisk` says whether any would |
 | GET | `/overview` | Everything the dashboard needs in one call |
 
 ### Account credentials
 
 The account can be configured at runtime instead of (or on top of) the container environment.
-The credential is stored in the data volume (`credentials.json`, mode 600), applied to every
-new `claude` process, and never returned by any endpoint.
+The credential is kept in the secret vault (`secrets.json` in the data volume, mode 600, sealed when
+there is a key; see [docs/setup.md](docs/setup.md)), handed to every new `claude` process in its
+environment and to no other, and never returned by any endpoint.
 
 | Method | Route | Description |
 | --- | --- | --- |
@@ -595,6 +618,22 @@ new `claude` process, and never returned by any endpoint.
 | PUT | `/auth/credentials` | `{ oauthToken }` or `{ apiKey }` (exactly one) |
 | DELETE | `/auth/credentials` | Remove the stored credential; falls back to the container environment |
 | POST | `/auth/verify` | Sends a minimal real request. `claude auth status` only reports what is configured, it does not validate the token |
+
+### Setup
+
+The first setup, from the app: what is signed in and what is not, and the sign-ins that do the rest
+through each tool's own documented surface. A key is write-only and never in argv, a log, an event
+or an answer; every write, and reading a sign-in, is refused to a chat's token. See
+[docs/setup.md](docs/setup.md).
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/setup` | `{ seen, access, providers, hosts, youtrack, tailscale, methods, secrets }`: the auth mode, each enabled agent's readiness and whether a key is kept for it, each code host's CLI and the hosts it is signed in to, YouTrack, the Tailscale behind Remote access (offered, run by Agentry, its readiness and node name), the sign-in methods per tool, and whether the vault is sealed and its key sits beside the data |
+| POST | `/setup/seen` | Record that the setup assistant was finished or skipped (`setupSeen` in `app-settings.json`); `409` when the environment sets it off |
+| POST | `/setup/logins` | `{ tool, method: 'key' \| 'device', host?, secret?, variable? }`. A key goes on stdin to the CLI's own login (Codex, gh, glab), into a 0600 file named in `tailscale up --auth-key=file:` and removed after (Tailscale), or into the vault (Claude Code, Gemini, Copilot as `COPILOT_GITHUB_TOKEN`, OpenCode, YouTrack), and the answer comes once it ended; a classic `ghp_` token for Copilot is a `400`. A device sign-in answers at once; `login.updated` carries the URL and the code (Tailscale's login URL has none), then the end, decided by the tool's readiness probe. Copilot's device sign-in is gh's to github.com, whose token Copilot falls back to. Expires after 15 minutes. Tailscale only where Agentry runs its daemon (the image), `409` elsewhere |
+| GET | `/setup/logins/:id` | One sign-in: state, URL and code, `error` code, readiness after it ended |
+| DELETE | `/setup/logins/:id` | Cancel it; the command's process group is killed |
+| DELETE | `/setup/credentials/:tool?host=` | Sign out: `codex logout`, `gh`/`glab auth logout --hostname`, `claude auth logout` plus the vault, `tailscale logout` after the tunnel closes, or the vault alone (Copilot's forgets only the token Agentry keeps, never gh's sign-in) |
 
 ### Security
 
@@ -619,7 +658,7 @@ next start, audited with actor `env` (see [Securing it](#securing-it)).
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/tunnel` | `{ state, url, since, reason, enabled, tailscale, port, settings }`: `url` and `since` only while `active`, `reason` (with a `code`) only while `failed`, `enabled` false where the deploy does not offer the tunnel (`AGENTRY_TUNNEL`, off in the image), `tailscale` whether the CLI is installed, signed in, connected and has HTTPS on (`state`, `version`, `host`, `reason`), read again from the CLI at most every two seconds |
+| GET | `/tunnel` | `{ state, url, since, reason, enabled, managed, tailscale, port, settings }`: `url` and `since` only while `active`, `reason` (with a `code`) only while `failed`, `enabled` false where the deploy does not offer the tunnel (`AGENTRY_TUNNEL`), `managed` true where Agentry runs the `tailscaled` itself (the image) and signs it in from the setup, `tailscale` whether the CLI is installed, signed in, connected and has HTTPS on (`state`, `version`, `host`, `reason`), read again from the CLI at most every two seconds |
 | PUT | `/tunnel/settings` | `{ startWithAgentry }`, off by default. Emits `tunnel.changed` |
 | POST | `/tunnel/start` | Adds Agentry's `tailscale serve` rule on `port`; `409` while the auth mode is `none` or where `enabled` is false, `failed` with the reason when Tailscale is not ready or the port serves something else. The address shows, and the node's exact name joins the allowlist, once the rule reads back from the Serve config |
 | POST | `/tunnel/stop` | Takes the name off the allowlist and removes only Agentry's Serve rule; turning the auth mode to `none` does it first |
@@ -791,7 +830,7 @@ One Server-Sent Events stream for the whole app, so a client never has to poll.
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/events?since=ID` | Every change as an `AgentryEvent` (`id:`, `event: <type>`, `data: <json>`): runs created, updated, ended and removed; prompts waiting for a person (`run.waiting`, `permission.requested`/`resolved`); rate limits and account rotation; background tasks, subagents and workflows starting and ending; orchestration, task and merge-conflict changes (`orchestration.updated` also carries `verificationStatus` while the checks run); `changes.updated` when a running task's or the integration branch's commits or uncommitted files move; `chat.activity` when what a chat's live execution is doing changes (a tool call, a block being written or thought, a prompt blocking it), at most once per chat per second; `health.changed` when a chat's health changes; `supervisor.proposed` when the supervisor answers one with a hint; `schedule.changed` (created, updated, enabled, disabled, deleted, rescheduled) and `schedule.fired` (every run row written or moved); `workitem.created`, `workitem.updated` (naming the fields that changed), `workitem.moved` (with the previous column and whether the new one is over its limit) and `workitem.removed`; `milestone.changed` (created, updated, closed, reopened, deleted); `team.changed` (created, updated, removed, template); `flow.run` (queued, started, ended, with its outcome); `journal.changed` (added, removed); `memory.proposal` (created, approved, rejected); `document.changed` (written, removed, tied, untied); `assistant.run` (started, read, ended, failed) and `assistant.proposal` (accepted, discarded, restored); `project.created` and `project.removed` (a project imported, created or removed); `project.updated` (name, key, modules or settings); `sessions.changed`; `system.release` once per newer Agentry release a check finds (not a notification). Opens with `stream.hello`, which carries the server's `version`; honours `Last-Event-ID` against a bounded in-memory buffer and sends `stream.resync` when that id is gone (refetch everything). A `: ping` comment every 15 s |
+| GET | `/events?since=ID` | Every change as an `AgentryEvent` (`id:`, `event: <type>`, `data: <json>`): runs created, updated, ended and removed; prompts waiting for a person (`run.waiting`, `permission.requested`/`resolved`); rate limits and account rotation; background tasks, subagents and workflows starting and ending; orchestration, task and merge-conflict changes (`orchestration.updated` also carries `verificationStatus` while the checks run); `changes.updated` when a running task's or the integration branch's commits or uncommitted files move; `chat.activity` when what a chat's live execution is doing changes (a tool call, a block being written or thought, a prompt blocking it), at most once per chat per second; `health.changed` when a chat's health changes; `supervisor.proposed` when the supervisor answers one with a hint; `schedule.changed` (created, updated, enabled, disabled, deleted, rescheduled) and `schedule.fired` (every run row written or moved); `workitem.created`, `workitem.updated` (naming the fields that changed), `workitem.moved` (with the previous column and whether the new one is over its limit) and `workitem.removed`; `milestone.changed` (created, updated, closed, reopened, deleted); `team.changed` (created, updated, removed, template); `flow.run` (queued, started, ended, with its outcome); `journal.changed` (added, removed); `memory.proposal` (created, approved, rejected); `document.changed` (written, removed, tied, untied); `assistant.run` (started, read, ended, failed) and `assistant.proposal` (accepted, discarded, restored); `project.created` and `project.removed` (a project imported, created or removed); `project.updated` (name, key, modules or settings); `sessions.changed`; `login.updated` when a sign-in of the setup starts, shows its device code or ends (the URL and the code only, never the key or the CLI's output); `system.release` once per newer Agentry release a check finds (not a notification). Opens with `stream.hello`, which carries the server's `version`; honours `Last-Event-ID` against a bounded in-memory buffer and sends `stream.resync` when that id is gone (refetch everything). A `: ping` comment every 15 s |
 
 ```bash
 curl -N localhost:8787/api/events
@@ -829,7 +868,7 @@ The hosts Agentry opens pull and merge requests on, GitHub through `gh` and GitL
 | GET | `/trackers/settings` | The document from `trackers.json`: enabled and binary override per tracker |
 | PUT | `/trackers/settings` | Replace it, validated; trackers are detected again in the background. Not open to a chat's token |
 | GET | `/trackers/youtrack/credentials` | The YouTrack address, whether a token is saved and whether it is encrypted; never the token. Not open to a chat's token |
-| PUT | `/trackers/youtrack/credentials` | `{ host, token? }` — save the address and a permanent token (0600, sealed in the desktop app); YouTrack is detected again before the answer. Not open to a chat's token |
+| PUT | `/trackers/youtrack/credentials` | `{ host, token? }` — save the address and a permanent token (in the secret vault, 0600, sealed when there is a key); YouTrack is detected again before the answer. Not open to a chat's token |
 | DELETE | `/trackers/youtrack/credentials` | Forget them. Not open to a chat's token |
 | GET | `/projects/:id/tracker` | The project's tracker (`id`, `scope`, `query`, `statusMap`), or null |
 | PUT | `/projects/:id/tracker` | Replace the tracker, validated, leaving the rest of the settings; a null body clears it. Not open to a chat's token |
@@ -1196,7 +1235,7 @@ Claude Code precedence is local > project > user.
 | PUT | `/config/tool-presets/default` | `{ defaultPresetId }` — the preset a new chat takes when it names neither `toolPreset` nor `allowedTools` (`toolPreset: null` opts out); `null` clears it |
 | POST | `/config/tool-presets/restore` | Rewrite the three shipped presets as they ship; every other preset and the default are left alone |
 | PUT / DELETE | `/config/tool-presets/:id` | Create, replace or delete a preset — body `{ name, description?, allowedTools, disallowedTools? }` |
-| GET / PUT | `/settings/app` | Settings that change without a restart (`app-settings.json`): `{ allowedHosts, maxConcurrentRuns, defaultPermissionMode, providersStepSeen, sources, allowedHostLayers }`, where each source is `env`, `file` or `default`. `allowedHosts` adds the hosts saved here to those of `AGENTRY_ALLOWED_HOSTS`, and `allowedHostLayers` splits them into `env`, `file` and `runtime` (a running tunnel's host, read-only). The `PUT` body names only what changes; a setting the environment set is refused, except `allowedHosts`, which replaces the saved hosts; a pattern such as `*.com` is refused. Emits `settings.changed` |
+| GET / PUT | `/settings/app` | Settings that change without a restart (`app-settings.json`): `{ allowedHosts, maxConcurrentRuns, defaultPermissionMode, setupSeen, sources, allowedHostLayers }`, where each source is `env`, `file` or `default`. `allowedHosts` adds the hosts saved here to those of `AGENTRY_ALLOWED_HOSTS`, and `allowedHostLayers` splits them into `env`, `file` and `runtime` (a running tunnel's host, read-only). The `PUT` body names only what changes; a setting the environment set is refused, except `allowedHosts`, which replaces the saved hosts; a pattern such as `*.com` is refused. Emits `settings.changed` |
 | GET / PUT / DELETE | `/dashboard/layout?project=<id\|all>` | The layout of one Home, per project and one for All projects (`dashboard-layouts.json`): `{ project, layout }`, `layout` being `null` while the default applies. `PUT` takes the whole layout `{ version: 1, widgets: [{ id, type, size, config? }] }` in drawing order and answers 400 for an unknown or misplaced widget type, a size the type does not offer or a repeated id, 404 for an unknown project; `DELETE` resets it. A chat's token cannot write (403). Emits `dashboard.layout` |
 | GET / PUT / DELETE | `/config/resources/:kind/:name?project=` | Markdown content (a script for `workflows`, whose `format` is `javascript`) — body `{ content }` |
 

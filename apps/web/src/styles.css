@@ -38,7 +38,9 @@
 @import './styles/decisions.css';
 @import './styles/providers.css';
 @import './styles/rotation-chat.css';
+@import './styles/chat-loading.css';
 @import './styles/integrations.css';
+@import './styles/setup.css';
 @import './styles/suggest.css';
 @import './styles/diff.css';
 @import './styles/overlays.css';
