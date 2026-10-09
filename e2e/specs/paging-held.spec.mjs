@@ -57,7 +57,13 @@ export default async ({ page, api, check, dirs }) => {
     check((await api.get(`/chats/${SESSION}?limit=1`)).body.total === TOTAL + GROWTH, 'the API sees the chat grow');
     since = await page.eval('return performance.now()');
     await leaveAndReturn(page);
-    await page.waitFor(atEnd, { label: 'the transcript at its end after the growth' });
+    // Coming back shows the page held from before at its end until the reads land: being at the end
+    // means nothing until the newest message is there too. A wait that still fails says where the
+    // view was, since the case seen once in CI (never at the end for the whole wait) is not reproduced
+    await page.waitFor(`return (()=>{${shows(mark(TOTAL + GROWTH - 1))}})() && (()=>{${atEnd}})()`, { label: 'the transcript at its end after the growth' }).catch(async (error) => {
+      const view = await page.eval(`const m=document.querySelector('.run-scroll');return JSON.stringify({scrollTop:m.scrollTop,scrollHeight:m.scrollHeight,clientHeight:m.clientHeight,above:(()=>{${aboveCount}})()})`).catch(() => 'unknown');
+      throw new Error(`${error.message}; the view: ${view}`);
+    });
     check(await page.eval(shows(mark(TOTAL + GROWTH - 1))), 'the newest message after the growth is on screen');
     // A tail read cannot meet a page 300 entries behind it: the newest page is read whole, and what
     // was held no longer reaches it, so only the newest page shows
@@ -76,7 +82,8 @@ export default async ({ page, api, check, dirs }) => {
     const BRIDGE = 150;
     growTranscript(file, SESSION, grown, grown + BRIDGE);
     await leaveAndReturn(page);
-    await page.waitFor(atEnd, { label: 'the transcript at its end after the second growth' });
+    // The same: the end counts once the newest page stands alone
+    await page.waitFor(`return (()=>{${aboveCount}})()===${grown + BRIDGE - PAGE} && (()=>{${atEnd}})()`, { label: 'the transcript at its end after the second growth' });
     check((await page.eval(aboveCount)) === grown + BRIDGE - PAGE, 'the newest page stands alone again');
     await page.eval(`document.querySelector('.run-scroll').dispatchEvent(new WheelEvent('wheel',{deltaY:-120,bubbles:true}));return true`);
     await page.waitFor(`const b=(()=>{${earlierButton}})();if(!b)return false;b.click();return true`, { label: 'Load earlier, over the gap' });
