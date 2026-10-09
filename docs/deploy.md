@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-21T07:35:14Z
-updated_at: 2026-10-08T23:59:00Z
+updated_at: 2026-10-09T10:00:00Z
 tags:
     - deploy
     - docker
@@ -232,8 +232,33 @@ the digest together; `docker/Dockerfile` carries the two commands that print it.
 (1.0.3). Their sign-ins live in `/data/provider-homes/gh` and `/data/provider-homes/glab` through
 `GH_CONFIG_DIR` and `GLAB_CONFIG_DIR`, which the server creates on start like the agents' homes. A
 container has no keyring, so both keep the token in plain text there (glab says so as it signs in,
-and its `config.yml` is mode 0600); the YouTrack token
-is Agentry's own, kept with the wrapper's credentials.
+and its `config.yml` is mode 0600). They are signed in and out from the app, with a token or a device
+code ([setup.md](setup.md), [code-hosts.md](code-hosts.md#signing-in-from-agentry)). The YouTrack
+token is Agentry's own, kept in the secret vault below.
+
+**The secret vault and its key.** What a CLI reads from its environment (Claude Code's token or key,
+Gemini's, Copilot's and OpenCode's keys, YouTrack's address and token) is kept in
+`/data/secrets.json`, mode 0600, sealed with AES-256-GCM ([setup.md](setup.md#the-secret-vault)).
+The image sets `AGENTRY_DISTRIBUTION=docker`, so when the environment brings no
+`AGENTRY_SECRET_KEY` the server makes one on the first write and keeps it beside the data, in
+`/data/secret.key` (32 random bytes as hex, mode 0600). That key protects a copy of the files (a
+backup, a file sent by mistake), not the volume: whoever reads `/data` reads both. Settings →
+Security says which case a container is in. The recommended setup passes the key in the environment
+instead, kept somewhere other than the data volume:
+
+```bash
+openssl rand -hex 32   # once; keep it in your secret store
+docker run … -e AGENTRY_SECRET_KEY=<that hex> … ghcr.io/yeyo11/agentry
+```
+
+With Compose, put it in `.env` and add it to the service's `environment`; with the chart, `env:`
+takes it (as a plain value in the release: the chart has no Secret-backed field for it yet). The
+server drops it from its environment once read, so no child process inherits it. The environment's
+key wins over `secret.key`, and a value sealed with another key reads as absent: moving a container
+from the file key to one in the environment means entering its keys again in the app (then
+`secret.key` can be removed). Losing the key loses what it sealed, never more: the sign-ins gh, glab,
+Codex and Tailscale keep themselves are not in the vault. The whole model is in
+[security-model.md](security-model.md).
 
 The installer the build downloads, Claude Code's, is fetched to a file, checked against a SHA-256
 and only then run, so a compromised install script fails the build instead of running as root. The
@@ -354,7 +379,7 @@ next update**:
 | Folder | Holds | Lost when it is not named |
 | --- | --- | --- |
 | `/home/node/.claude` | transcripts of every chat, MCP servers, agents, skills, `CLAUDE.md`, settings | the history and the account setup |
-| `/data` | the wrapper's database and settings, uploads, and the other agents', gh's and glab's sign-ins (`provider-homes/`) | chats' records, schedules, the auth mode, every provider, GitHub and GitLab sign-in |
+| `/data` | the wrapper's database and settings, uploads, the secret vault (`secrets.json`, and `secret.key` unless the key comes from the environment), the other agents', gh's and glab's sign-ins (`provider-homes/`) and the image's Tailscale node (`tailscale/`) | chats' records, schedules, the auth mode, every provider, GitHub and GitLab sign-in, the kept keys and the tailnet node |
 | `/workspace` | the projects the agents work on | the projects, if they live there |
 
 Start it with all three named, and a name for the container to replace:
@@ -447,4 +472,4 @@ Both orchestrators allow 30 s between `SIGTERM` and `SIGKILL` (`stop_grace_perio
 
 ## Related
 
-[[desktop.md]] · [[status.md]] · [[plans/mobile.md]] · [[plans/app-updates.md]] · [[tunnel.md]] · [[plans/tunnel.md]] · [[code-hosts.md]] · [[container-state.md]]
+[[desktop.md]] · [[status.md]] · [[plans/mobile.md]] · [[plans/app-updates.md]] · [[tunnel.md]] · [[plans/tunnel.md]] · [[code-hosts.md]] · [[container-state.md]] · [[setup.md]] · [[security-model.md]]

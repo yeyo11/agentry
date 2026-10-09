@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-01T09:00:00Z
-updated_at: 2026-10-06T12:00:00Z
+updated_at: 2026-10-09T10:00:00Z
 tags:
     - code-hosts
     - pull-request
@@ -10,6 +10,7 @@ tags:
     - checks
     - logs
     - reviews
+    - setup
     - merge
     - webhooks
     - pacer
@@ -46,9 +47,51 @@ CLI's login. The rule is stated in [CLAUDE.md](../CLAUDE.md) and
 [CONTRIBUTING.md](../CONTRIBUTING.md). So:
 
 - there is **no REST client of Agentry's own** and no token of Agentry's own for a code host;
-- no second login: the session is the one the person already has in `gh` or `glab`;
+- no second login: the session is the one the person has in `gh` or `glab`, whether it was made in
+  a terminal or from Agentry, which only runs the CLI's own `auth login` and `auth logout` (see
+  [Signing in from Agentry](#signing-in-from-agentry));
 - **no agent ever pushes.** `stageRules` in `packages/core/src/flow.ts` keeps `git push` denied; the
   push is Agentry's own process, after the person approved.
+
+## Signing in from Agentry
+
+Since 2026-10-08 ([the in-app setup plan](plans/in-app-setup.md), reference in
+[setup.md](setup.md)), `gh` and `glab` are signed in and out from Agentry, so a container with no
+shell can reach GitHub and GitLab. It happens in two places, with the same panel: Settings →
+Integrations (a signed-out CLI's **Sign in**, **Add another host** on a ready one, and Sign in or
+Sign out at the end of each known host's line) and the setup assistant's "Code and work items" step.
+Each sign-in is per host: the panel asks for the host first (`github.com` and `gitlab.com` by
+default; an Enterprise or self-managed one is typed in).
+
+| CLI | With a token (stdin) | With a device code | Sign-out |
+|---|---|---|---|
+| `gh` | `gh auth login --with-token --hostname H` | `gh auth login --web --hostname H`: a URL and a one-time code, recorded to work with no TTY | `gh auth logout --hostname H` |
+| `glab` | `glab auth login --hostname H --stdin` | `glab auth login --device --hostname H` (GitLab 17.9 or later on the host) | `glab auth logout --hostname H` |
+
+- **The CLI owns the credential** (the plan's decision 4). The token goes once to the CLI's own
+  login command on stdin, never in argv, and the CLI stores it where it always does. Agentry's
+  secret vault keeps nothing for gh or glab.
+- **Success is the readiness probe**, not the output: the code hosts' detector is refreshed and the
+  host must read `signedIn`. It matters for glab, which stores a bad token with exit 0 and only a
+  `401` warning (recorded in `packages/core/test/fixtures/logins/`).
+- **The device code** is read from the CLI's output with the patterns of
+  `packages/core/src/setup/device-patterns.ts` (gh's `XXXX-XXXX`, glab's eight characters with no
+  dash); only the URL and the code leave the process, on `login.updated`.
+- **Where the sign-ins live.** On a person's machine, gh's and glab's own config directories, as
+  always. In the Docker image `GH_CONFIG_DIR=/data/provider-homes/gh` and
+  `GLAB_CONFIG_DIR=/data/provider-homes/glab`, on the data volume, so a replaced container keeps them
+  ([deploy.md](deploy.md#what-the-image-contains)). A container has no system keyring, so both CLIs
+  store the token in plain text in those files (gh in `hosts.yml`, glab in `config.yml`, mode 0600):
+  that is their documented fallback when no keyring exists, and glab says so as it signs in. Why
+  Agentry accepts it is in [security-model.md](security-model.md#what-the-vendors-clis-keep-in-plain-text).
+- **Copilot uses gh's github.com sign-in** (the plan's decision 7). Copilot CLI's own login cannot
+  keep a token without a keychain, and GitHub documents `gh auth token` as Copilot's last credential
+  source. So Copilot's **Code** sign-in starts gh's device sign-in to github.com (the same session the
+  GitHub row would start), and Copilot reads `ready` when `gh auth token --hostname github.com`
+  succeeds. Signing gh out of github.com from Agentry refreshes Copilot at once; it then stops
+  working unless it has a token of its own. See [setup.md](setup.md#copilot-in-a-container).
+- **Tokens the person keeps in the environment** (`GH_TOKEN`, `GITHUB_TOKEN`, `GITLAB_TOKEN`, …) are
+  still left alone, and sign-out does not touch them.
 
 ## What a code host is
 
@@ -901,4 +944,4 @@ cannot manage hooks), `404 registration-not-found`, `409` for `no-public-url`,
 
 ## Related
 
-[[plans/code-hosts.md]] · [[decision-engine.md]] · [[work-items.md]] · [[trackers.md]] · [[tunnel.md]] · [[deploy.md]] · [[plans/work-item-pull-requests.md]] · [[providers.md]] · [[status.md]] · [[knowledge-base.md]]
+[[plans/code-hosts.md]] · [[decision-engine.md]] · [[work-items.md]] · [[trackers.md]] · [[tunnel.md]] · [[deploy.md]] · [[plans/work-item-pull-requests.md]] · [[providers.md]] · [[status.md]] · [[knowledge-base.md]] · [[setup.md]] · [[plans/in-app-setup.md]] · [[security-model.md]]

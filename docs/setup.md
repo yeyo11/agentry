@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-08T21:00:00Z
-updated_at: 2026-10-08T23:59:30Z
+updated_at: 2026-10-09T10:00:00Z
 tags:
     - setup
     - security
@@ -12,11 +12,13 @@ tags:
 ---
 # The first setup, from the app
 
-Steps 2 and 5 of [the in-app setup plan](plans/in-app-setup.md): the secret vault, the child
-environments, the sign-ins and the setup state, with their routes (Core and API), and the setup
-assistant and the sign-in panel that use them (Web). The CLIs and the key in the image are the
-Docker step's. This document is the reference for what is built; the plan keeps the reasoning and the
-owner's decisions.
+Steps 2, 5 and 7 of [the in-app setup plan](plans/in-app-setup.md): the secret vault, the child
+environments, the sign-ins and the setup state, with their routes (Core and API), the setup
+assistant and the sign-in panel that use them (Web), and the sign-in of the image's own Tailscale.
+The CLIs and the key in the image are the Docker step's
+([deploy.md](deploy.md#what-the-image-contains)); how the secrets are kept, and what the vendors'
+CLIs keep in plain text, is in [security-model.md](security-model.md). This document is the
+reference for what is built; the plan keeps the reasoning and the owner's decisions.
 
 ## The secret vault
 
@@ -172,10 +174,12 @@ for an hour; one live session per tool and host, and a new one cancels the one s
 - **Sign-out** as the table says. Copilot's forgets only the token Agentry keeps: neither a
   `copilot login` of the machine's own nor gh's sign-in is touched.
 
-The device patterns were written from the documented formats, and the tests run them against fake
-output (`packages/core/test/fixtures/logins/*-fake.txt`). The recordings of the real commands, made
-with no TTY in the image, replace those fakes and decide whether a row keeps its device method; gh's
-row is flagged `deviceNeedsRecording` until its recording shows `--web` works without a terminal.
+The device patterns were first written from the documented formats; they now follow the
+recordings of the real commands, made with no TTY in the image
+(`packages/core/test/fixtures/logins/`, see its `README.md`), and the session tests replay those
+recordings. Codex prints the URL and the code each alone on a coloured line, glab's code has eight
+characters and no dash, and gh's `--web` runs without a terminal, so gh keeps its device method.
+Copilot's own `--device-code` was recorded too, and dropped (see above).
 
 A secret never goes into argv, a log, an event or an answer: the tests assert the spawned argv and
 what the fake CLI read on stdin, and that no event or answer carries the key.
@@ -308,4 +312,4 @@ namespace; the pure logic (methods per tool, failures, steps, summary) is `lib/s
 ## Related
 
 [[plans/in-app-setup.md]] · [[providers.md]] · [[code-hosts.md]] · [[trackers.md]] ·
-[[layered-settings.md]] · [[container-state.md]] · [[deploy.md]] · [[tunnel.md]]
+[[layered-settings.md]] · [[container-state.md]] · [[deploy.md]] · [[tunnel.md]] · [[security-model.md]]
