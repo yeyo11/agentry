@@ -260,13 +260,14 @@ e2e suites:
 - **GitHub Enterprise for the gh fallback.** `copilot help environment` documents `COPILOT_GH_HOST`
   and `GH_HOST` as the host Copilot authenticates against (GitHub Enterprise Cloud with data
   residency). Copilot's readiness asks gh about that host, and its Code signs gh in to it.
+- **The Helm chart's `AGENTRY_SECRET_KEY`** comes from a Secret: `secretKey.existingSecret` and
+  `secretKey.key`, or `secretKey.value` for a Secret the chart makes ([deploy.md](../deploy.md#kubernetes-helm)).
 
 **Left open.**
 - **Claude Code's sign-in.** `claude auth login` cannot be driven without a terminal (a local
   callback, or a code pasted at its prompt), so Claude Code takes the token `claude setup-token` makes
   on the person's own machine, or an API key; there is no device code for it.
-- The Helm chart has no Secret-backed field for `AGENTRY_SECRET_KEY` (its `env:` takes a plain
-  value), and a key beside the data protects a copy of the files, not the volume
+- A key beside the data protects a copy of the files, not the volume
   ([security-model.md](../security-model.md#known-limits)).
 
 ## Related
