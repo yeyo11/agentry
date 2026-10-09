@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T10:34:29.651906091Z
-updated_at: 2026-10-06T12:00:00Z
+updated_at: 2026-10-09T10:00:00Z
 tags:
     - plan
     - tunnel
@@ -776,4 +776,4 @@ path through it.
 
 ## Related
 
-[[deploy.md]] · [[desktop.md]] · [[plans/mobile.md]] · [[tunnel.md]] · [[code-hosts.md]] · [[layered-settings.md]] · [[security-model]]
+[[deploy.md]] · [[desktop.md]] · [[plans/mobile.md]] · [[tunnel.md]] · [[code-hosts.md]] · [[layered-settings.md]] · [[security-model.md]]

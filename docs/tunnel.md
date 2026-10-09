@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T18:00:00Z
-updated_at: 2026-10-08T23:59:00Z
+updated_at: 2026-10-09T10:00:00Z
 tags:
     - tunnel
     - remote-access
@@ -225,4 +225,4 @@ never contains the address, and it never becomes a notification. The rows are in
 
 ## Related
 
-[[plans/tunnel.md]] · [[setup.md]] · [[plans/in-app-setup.md]] · [[code-hosts.md]] · [[layered-settings.md]] · [[deploy.md]] · [[desktop.md]] · [[notifications.md]] · [[plans/mobile.md]] · [[providers.md]] · [[security-model]]
+[[plans/tunnel.md]] · [[setup.md]] · [[plans/in-app-setup.md]] · [[code-hosts.md]] · [[layered-settings.md]] · [[deploy.md]] · [[desktop.md]] · [[notifications.md]] · [[plans/mobile.md]] · [[providers.md]] · [[security-model.md]]

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T18:00:00Z
-updated_at: 2026-10-08T21:00:00Z
+updated_at: 2026-10-09T10:00:00Z
 tags:
     - settings
     - configuration
@@ -142,4 +142,4 @@ their owner adds and removes while Agentry runs. The only owner so far is the
 
 ## Related
 
-[[tunnel.md]] · [[plans/tunnel.md]] · [[deploy.md]] · [[security-model]]
+[[tunnel.md]] · [[plans/tunnel.md]] · [[deploy.md]] · [[security-model.md]]
