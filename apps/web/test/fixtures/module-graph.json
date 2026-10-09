@@ -426,7 +426,7 @@
   "slash-commands [applyCommand, commandNames, matchCommands, slashQuery]",
   "source [LIVE_REFRESH_MS, ReviewSource]",
   "steps-model [ScrubDot, conversationHref, currentStep, entryParam, intentParts, patchSpan, plainIntent, sameFileWindow, scrubDots, stepBeside, stepKey, stepPaths, swipeOf]",
-  "stick-to-bottom [useStickToBottom]",
+  "stick-to-bottom [ScrollVerdict, scrollVerdict, useStickToBottom]",
   "team [BoardTeam, BoardTeamProvider, BounceFact, ColumnRole, FlowButton, PhoneFlowRow, useBoardTeam, useBoardTeamData, useStripRuns]",
   "team [Team]",
   "theme [DEFAULT_THEME, EffectiveTheme, THEME_STORAGE_KEY, ThemePreference, resolveEffective, resolvePreference, setThemePreference, useEffectiveTheme, useThemePreference]",

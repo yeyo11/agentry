@@ -15,6 +15,27 @@ const GLIDE_MS = 700;
 /** Keys that scroll up when the scroller, or something in it, has focus. */
 const UP_KEYS = new Set(['ArrowUp', 'PageUp', 'Home']);
 
+/** What a scroll means for following the end; see `scrollVerdict`. */
+export type ScrollVerdict = 'release' | 'resume' | 'pin' | 'none';
+
+/**
+ * What one scroll of the view means, given whether it went up, whether it left the view near the
+ * end, and whether it came right after the reader's own wheel, key, pointer or finger.
+ *
+ * Only the reader lets go of the end. A scroll up that is not theirs while the end is followed is
+ * the page moving the view (the windowed list re-anchoring as a page of rows is swapped, the
+ * browser's own scroll anchoring, a glide cut short): it is undone at once. The pin used to run
+ * only when something in the scroller changed size, so a scroll like that with every row on
+ * screen already measured left a chat that nobody touched still "following", with no button to
+ * jump back, and short of its end for good.
+ */
+export function scrollVerdict({ following, movedUp, near, byReader }: { following: boolean; movedUp: boolean; near: boolean; byReader: boolean }): ScrollVerdict {
+  if (movedUp && byReader && !near) return 'release';
+  if (near && !movedUp) return 'resume';
+  if (movedUp && !byReader && following) return 'pin';
+  return 'none';
+}
+
 /**
  * Keeps a scroller at its end while what is in it grows: rows being measured, stored messages, the
  * block being streamed and the prompts under it all change its height, and each of them scrolling
@@ -136,8 +157,10 @@ export function useStickToBottom(ref: RefObject<HTMLElement | null>, mounted: bo
       // reader: only a scroll that follows something they did can let go of the end.
       if (!scrollable()) return resume();
       const near = el.scrollHeight - top - el.clientHeight < NEAR_END_PX;
-      if (!near && movedUp && performance.now() - touchedAt < INPUT_WINDOW_MS) release();
-      else if (near && !movedUp) resume();
+      const verdict = scrollVerdict({ following: following.current, movedUp, near, byReader: performance.now() - touchedAt < INPUT_WINDOW_MS });
+      if (verdict === 'release') release();
+      else if (verdict === 'resume') resume();
+      else if (verdict === 'pin') pin();
     };
     // A small nudge up stays near the end, and while Claude writes the pin would pull it straight
     // back before the scroll could count: a wheel, a key or a finger going up lets go at once
