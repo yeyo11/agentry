@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-21T07:35:14Z
-updated_at: 2026-10-09T10:00:00Z
+updated_at: 2026-10-09T16:00:00Z
 tags:
     - deploy
     - docker
@@ -91,11 +91,13 @@ access control, and it is no substitute for turning the guard on.
 ```bash
 kubectl create secret generic agentry-claude --from-literal=CLAUDE_CODE_OAUTH_TOKEN=…
 kubectl create secret generic agentry-token --from-literal=token="$(openssl rand -hex 32)"
+kubectl create secret generic agentry-secret-key --from-literal=secret-key="$(openssl rand -hex 32)"
 
 helm install agentry ./deploy/helm/agentry \
   --set image.tag=0.36.1 \
   --set claude.existingSecret=agentry-claude \
-  --set auth.mode=token --set auth.token.existingSecret=agentry-token
+  --set auth.mode=token --set auth.token.existingSecret=agentry-token \
+  --set secretKey.existingSecret=agentry-secret-key
 ```
 
 The chart is a Deployment (one replica, `Recreate`), a Service, and one PersistentVolumeClaim that
@@ -104,9 +106,18 @@ and `/workspace`. The claim carries `helm.sh/resource-policy: keep`, so `helm un
 account setup and the transcripts alone. Values worth knowing: `image.tag` (a release, not `latest`, so
 `IfNotPresent` means something), `port`, `resources`, `securityContext` and
 `containerSecurityContext`, `env` (where `AGENTRY_ALLOWED_HOSTS` goes when an Ingress gives the pod
-a host name), `persistence.*`, `auth.mode` (`none`, `token`, `oidc`), `auth.readOnly`. `helm lint` and
-`helm template` are clean for every auth mode; rendering fails on purpose when `token` or `oidc` is
-chosen without what it needs.
+a host name), `persistence.*`, `auth.mode` (`none`, `token`, `oidc`), `auth.readOnly`, and
+`secretKey.*`, the vault's key (below). `helm lint` and `helm template` are clean for every auth mode;
+rendering fails on purpose when `token` or `oidc` is chosen without what it needs.
+
+`secretKey` passes `AGENTRY_SECRET_KEY` ([the secret vault and its key](#what-the-image-contains))
+from a Secret, as `valueFrom.secretKeyRef`, the way `auth.token` passes the API token:
+`secretKey.existingSecret` names a Secret you made, with the key under `secretKey.key` (`secret-key`
+by default), which keeps the value out of the release; `secretKey.value` instead makes the chart
+create `<release>-secret-key` holding it, which ends up in the release history, so it is for a test
+cluster. Rendering fails when `secretKey.value` is not 32 bytes as hex, or when `env` also sets
+`AGENTRY_SECRET_KEY`. With neither, the server makes the key on the data volume, and the release
+notes say so.
 
 There is exactly one replica because the SQLite store is shared by the API and the CLI processes it
 starts. Do not scale it.
@@ -251,8 +262,8 @@ openssl rand -hex 32   # once; keep it in your secret store
 docker run … -e AGENTRY_SECRET_KEY=<that hex> … ghcr.io/yeyo11/agentry
 ```
 
-With Compose, put it in `.env` and add it to the service's `environment`; with the chart, `env:`
-takes it (as a plain value in the release: the chart has no Secret-backed field for it yet). The
+With Compose, put it in `.env` and add it to the service's `environment`; with the chart, keep it in
+a Secret and name it in `secretKey.existingSecret` ([Kubernetes](#kubernetes-helm)). The
 server drops it from its environment once read, so no child process inherits it. The environment's
 key wins over `secret.key`, and a value sealed with another key reads as absent: moving a container
 from the file key to one in the environment means entering its keys again in the app (then

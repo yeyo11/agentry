@@ -186,6 +186,18 @@ export default async ({ page, api, check, dirs }) => {
   };
   const rowOf = (id) => `.wh-card [data-project="${id}"]`;
   const kindIs = (id, kind) => `return document.querySelector(${JSON.stringify(rowOf(id))})?.getAttribute('data-kind') === ${JSON.stringify(kind)}`;
+  /**
+   * Presses a row's action once it can be pressed, as a person would. The row's buttons stay disabled
+   * until the last test's refresh of the list has landed, which comes after its toast: a click before
+   * then does nothing, and on a busy machine the toast came a whole read ahead of the button.
+   */
+  const act = async (id, action, wait) => {
+    const selector = `${rowOf(id)} [data-action="${action}"]`;
+    await page.waitFor(`const el=document.querySelector(${JSON.stringify(selector)});if(!el||el.disabled)return false;el.scrollIntoView({block:'center'});el.click();return true`, {
+      label: `${action} on the row, once it can be pressed`,
+    });
+    await page.sleep(wait);
+  };
   const actionsOf = (id) => page.eval(`return [...document.querySelectorAll(${JSON.stringify(`${rowOf(id)} [data-action]`)})].map((a) => a.getAttribute('data-action'))`);
   const openIntegrations = async (id, kind, label) => {
     await page.goto('/settings?tab=integrations', 300);
@@ -336,7 +348,7 @@ export default async ({ page, api, check, dirs }) => {
 
     // Test: the CLI pings the hook and reads what the host says about the delivery
     const beforeTest = ghCalls().length;
-    await page.click(`${rowOf(ghId)} [data-action="test"]`, undefined, 300);
+    await act(ghId, 'test', 300);
     await page.waitFor(`return /answered the test with 204/.test([...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' '))`, { timeout: 30_000, label: 'the host answered the test' });
     const testCalls = ghCalls().slice(beforeTest);
     check(testCalls.some((c) => c.includes(`-X POST repos/acme/shop/hooks/${HOOK_ID}/pings`)), `Test pings the hook through the CLI (${testCalls.join(' / ')})`);
@@ -347,7 +359,7 @@ export default async ({ page, api, check, dirs }) => {
 
     // A hook the host cannot deliver to: the row says so, with the host's response
     state('gh', { ci: 'passing', hookPing: 'fail' });
-    await page.click(`${rowOf(ghId)} [data-action="test"]`, undefined, 300);
+    await act(ghId, 'test', 300);
     await page.waitFor(`return /Could not test the webhook/.test([...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' '))`, { timeout: 30_000, label: 'the failed test is said' });
     await page.waitFor(kindIs(ghId, 'failing'), { label: 'the row is failing' });
     const failing = await text(rowOf(ghId));
@@ -362,7 +374,7 @@ export default async ({ page, api, check, dirs }) => {
     // It recovers when the next test is answered
     state('gh', { ci: 'passing' });
     await openIntegrations(ghId, 'failing', 'failing, recovering');
-    await page.click(`${rowOf(ghId)} [data-action="test"]`, undefined, 300);
+    await act(ghId, 'test', 300);
     await page.waitFor(kindIs(ghId, 'active'), { timeout: 30_000, label: 'a test the host answers makes it active again' });
 
     // ---- 3b. A GitLab hook: the fake glab holds it, the database registers it ----
@@ -385,7 +397,7 @@ export default async ({ page, api, check, dirs }) => {
     check((await actionsOf(glId)).join(',') === 'test,remove', `a registered GitLab project offers Test and Remove (${(await actionsOf(glId)).join(',')})`);
     await everyScreen('webhooks-gitlab-active-dark', 'a GitLab webhook, dark');
     const beforeGlTest = glCalls().length;
-    await page.click(`${rowOf(glId)} [data-action="test"]`, undefined, 300);
+    await act(glId, 'test', 300);
     await page.waitFor(`return /GitLab answered the test with 204/.test([...document.querySelectorAll('.toast')].map((t) => t.textContent).join(' '))`, { timeout: 30_000, label: 'GitLab answered the test' });
     const glTest = glCalls().slice(beforeGlTest);
     check(glTest.some((c) => c.includes(`-X POST projects/4242/hooks/${GL_HOOK_ID}/test/push_events`)), `Test asks GitLab for a push test through glab (${glTest.join(' / ')})`);
@@ -395,14 +407,14 @@ export default async ({ page, api, check, dirs }) => {
     await noSecret('after the GitLab test');
     // A hook GitLab cannot deliver to: the newest event says so
     state('glab', { hookPing: 'fail' });
-    await page.click(`${rowOf(glId)} [data-action="test"]`, undefined, 300);
+    await act(glId, 'test', 300);
     await page.waitFor(kindIs(glId, 'failing'), { timeout: 30_000, label: 'the GitLab row is failing' });
     state('glab', {});
     await openIntegrations(ghId, 'active', 'GitLab failing, recovering');
-    await page.click(`${rowOf(glId)} [data-action="test"]`, undefined, 300);
+    await act(glId, 'test', 300);
     await page.waitFor(kindIs(glId, 'active'), { timeout: 30_000, label: 'a test GitLab answers makes it active again' });
     // Remove: asks first, deletes the hook through glab
-    await page.click(`${rowOf(glId)} [data-action="remove"]`, undefined, 400);
+    await act(glId, 'remove', 400);
     await page.waitFor(`return !!document.querySelector('[role=dialog]')`, { label: 'the GitLab removal asks first' });
     check(glCalls().every((c) => !c.includes('-X DELETE')), 'nothing was deleted on GitLab before the person confirmed');
     await press('[role=dialog]', 'Remove webhook');
@@ -560,7 +572,7 @@ export default async ({ page, api, check, dirs }) => {
     // ---- Remove: asks first, deletes the hook on the host, and the row goes off ----
     await config({ address: ADDRESS });
     await openIntegrations(ghId, 'active', 'before removing');
-    await page.click(`${rowOf(ghId)} [data-action="remove"]`, undefined, 400);
+    await act(ghId, 'remove', 400);
     await page.waitFor(`return !!document.querySelector('[role=dialog]')`, { label: 'the removal asks first' });
     const ask = await page.text('[role=dialog]');
     check(/Remove the webhook of e2e-webhooks-gh/.test(ask) && /acme\/shop/.test(ask) && /register it again/.test(ask), `the removal names the project, the repository and the way back (${ask})`);
@@ -570,7 +582,7 @@ export default async ({ page, api, check, dirs }) => {
     await scan(page, check, 'the removal dialog, dark');
     await closeDialog();
     check(ghCalls().every((c) => !c.includes('-X DELETE')), 'cancelling deletes nothing');
-    await page.click(`${rowOf(ghId)} [data-action="remove"]`, undefined, 400);
+    await act(ghId, 'remove', 400);
     await page.waitFor(`return !!document.querySelector('[role=dialog]')`, { label: 'the removal asks again' });
     await press('[role=dialog]', 'Remove webhook');
     await page.waitFor(kindIs(ghId, 'off'), { timeout: 30_000, label: 'the row goes off' });

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-09T10:00:00Z
-updated_at: 2026-10-09T10:00:00Z
+updated_at: 2026-10-09T16:00:00Z
 tags:
     - security
     - secrets
@@ -54,7 +54,9 @@ there is a key, as `enc:v1:…`.
 A key beside the data protects a copy of the files (a backup, a file sent by mistake), not the
 volume: whoever can read `/data` reads both. Settings → Security's Secrets card says which case an
 install is in (`GET /setup`'s `secrets`: `sealed`, `keyBeside`), and recommends passing the key in the
-environment; [deploy.md](deploy.md#what-the-image-contains) says how. A value sealed with another
+environment; [deploy.md](deploy.md#what-the-image-contains) says how. The Helm chart takes it from a
+Secret (`secretKey.existingSecret`, rendered as `valueFrom.secretKeyRef`), so it stays out of the
+release. A value sealed with another
 key reads as absent, so it is entered again rather than misread.
 
 The older plain files, `credentials.json` (Claude Code) and `youtrack-credentials.json`, are moved
@@ -127,8 +129,6 @@ there is one, as they always did; Agentry changes nothing there.
 ## Known limits
 
 - A key beside the data does not protect the volume; only a key passed in the environment does.
-- The Helm chart has no Secret-backed field for `AGENTRY_SECRET_KEY` yet: its `env:` takes it as a
-  plain value in the release.
 - A kept token is not validated for free, so a revoked one reads `ready` until a run fails on it.
 
 ## Related

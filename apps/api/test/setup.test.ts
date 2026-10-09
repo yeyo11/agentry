@@ -187,7 +187,7 @@ test("the machine's own Tailscale is never signed in or out through the setup ro
 test('the Tailscale the image runs signs in with an auth key that no answer or event carries, and signs out', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'agentry-api-tailscale-'));
   const node = join(dir, 'node.json');
-  const key = 'tskey-auth-kApiTest-never-echoed';
+  const key = 'fake-ts-auth-key-api-never-echoed';
   writeFileSync(node, JSON.stringify({ backendState: 'NeedsLogin', authKey: key }));
   // The fake reads its state from the environment every child inherits
   const saved = process.env.FAKE_TAILSCALE_STATE;

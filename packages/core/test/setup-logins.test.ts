@@ -121,12 +121,21 @@ test('the methods table offers a device sign-in where the vendor documents one',
 });
 
 test('Copilot\'s key is kept for its environment and its Code is gh\'s sign-in to github.com, since its own login cannot store a token without a keychain', () => {
-  const copilot = setupMethods().find((m) => m.tool === 'copilot');
+  const copilot = setupMethods({}).find((m) => m.tool === 'copilot');
   assert.ok(copilot);
   assert.deepEqual([copilot.key, copilot.variables, copilot.device, copilot.deviceVia], ['env', ['COPILOT_GITHUB_TOKEN'], true, { tool: 'gh', host: 'github.com' }]);
   // Sign out forgets the kept key only: Copilot's own state and gh's are not Agentry's to undo
   assert.deepEqual([copilot.signOut, copilot.signOutKeyOnly], [true, true]);
-  assert.equal(setupMethods().filter((m) => m.deviceVia !== null).length, 1, 'no other tool lends its sign-in');
+  assert.equal(setupMethods({}).filter((m) => m.deviceVia !== null).length, 1, 'no other tool lends its sign-in');
+});
+
+test('Copilot\'s Code targets the GitHub Enterprise Cloud host COPILOT_GH_HOST or GH_HOST names, the one Copilot asks gh about', () => {
+  const via = (env: NodeJS.ProcessEnv) => setupMethods(env).find((m) => m.tool === 'copilot')?.deviceVia;
+  assert.deepEqual(via({ GH_HOST: 'acme.ghe.com' }), { tool: 'gh', host: 'acme.ghe.com' });
+  assert.deepEqual(via({ GH_HOST: 'ghes.example.com', COPILOT_GH_HOST: 'https://Acme.ghe.com/' }), { tool: 'gh', host: 'acme.ghe.com' }, 'COPILOT_GH_HOST wins, given as a URL like `copilot login --host`');
+  assert.deepEqual(via({ GH_HOST: '  ' }), { tool: 'gh', host: 'github.com' }, 'a blank variable names nothing');
+  assert.deepEqual(via({ COPILOT_GH_HOST: '--not a host' }), { tool: 'gh', host: null });
+  assert.equal(setupMethods({ GH_HOST: 'acme.ghe.com' }).find((m) => m.tool === 'gh')?.defaultHost, 'github.com', 'gh\'s own row keeps its default');
 });
 
 // ---------- device sign-in ----------
@@ -161,6 +170,17 @@ test('Copilot\'s Code starts gh\'s device sign-in to github.com, the session gh\
   const fromCopilot = await hang.logins.start({ tool: 'copilot', method: 'device' });
   assert.equal(hang.logins.get(fromGh.id)?.state, 'cancelled');
   hang.logins.cancel(fromCopilot.id);
+});
+
+test('Copilot\'s Code signs gh in to the host GH_HOST names, and is refused when it names no host', async () => {
+  const r = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('gh-web.stderr'), FAKE_LOGIN_STDERR: '1', GH_HOST: 'acme.ghe.com' } });
+  const started = await r.logins.start({ tool: 'copilot', method: 'device' });
+  assert.deepEqual([started.tool, started.host], ['gh', 'acme.ghe.com']);
+  await until(() => ended(r, started.id), 'gh');
+  assert.deepEqual(readRecord(r).argv, ['auth', 'login', '--web', '--hostname', 'acme.ghe.com']);
+  const bad = rig({ fake: { COPILOT_GH_HOST: '-x' } });
+  await assert.rejects(bad.logins.start({ tool: 'copilot', method: 'device' }), LoginInputError);
+  assert.equal(existsSync(bad.record), false, 'nothing ran');
 });
 
 test('a code printed on stderr counts too (glab), and gh and glab name their host', async () => {
@@ -404,7 +424,7 @@ test('a Tailscale sign-in waits on its login URL with no code, and succeeds once
 });
 
 test('a Tailscale auth key reaches the CLI only through a 0600 file that is gone once the command ended', async () => {
-  const key = 'tskey-auth-kNeverInArgv-0123456789abcdef';
+  const key = 'fake-ts-auth-key-never-in-argv';
   const r = tailscaleRig({ authKey: key });
   const session = await r.logins.start({ tool: 'tailscale', method: 'key', secret: key });
   assert.deepEqual([session.state, session.ready], ['succeeded', true]);
@@ -419,16 +439,16 @@ test('a Tailscale auth key reaches the CLI only through a 0600 file that is gone
   assert.ok(!JSON.stringify(session).includes(key));
 
   // A key the control server refuses is a failure, and its file goes too
-  const bad = tailscaleRig({ authKey: 'tskey-auth-the-right-one' });
-  const refused = await bad.logins.start({ tool: 'tailscale', method: 'key', secret: 'tskey-auth-kBADBADBAD-0000' });
+  const bad = tailscaleRig({ authKey: 'fake-ts-auth-key-the-right-one' });
+  const refused = await bad.logins.start({ tool: 'tailscale', method: 'key', secret: 'fake-ts-auth-key-bad' });
   assert.deepEqual([refused.state, refused.error], ['failed', 'cli-refused']);
   const badArg = bad.calls()[0]?.[3] ?? '';
   assert.equal(existsSync(badArg.slice('--auth-key=file:'.length)), false);
 });
 
 test('Tailscale signs out with logout, after the tunnel had its chance to close', async () => {
-  const r = tailscaleRig({ authKey: 'tskey-auth-ok' });
-  await r.logins.start({ tool: 'tailscale', method: 'key', secret: 'tskey-auth-ok' });
+  const r = tailscaleRig({ authKey: 'fake-ts-auth-key-ok' });
+  await r.logins.start({ tool: 'tailscale', method: 'key', secret: 'fake-ts-auth-key-ok' });
   assert.deepEqual(await r.logins.signOut('tailscale'), { tool: 'tailscale', host: null, signedOut: true, reason: null });
   assert.deepEqual(r.calls().at(-1), ['logout']);
   assert.deepEqual(r.signOuts, ['tailscale']);
@@ -438,7 +458,7 @@ test('Tailscale signs out with logout, after the tunnel had its chance to close'
 test('a Tailscale that belongs to the machine is neither signed in nor out from Agentry', async () => {
   const r = tailscaleRig({ refusal: 'not managed' });
   await assert.rejects(r.logins.start({ tool: 'tailscale', method: 'device' }), (err: Error) => err instanceof LoginRefusedError && (err as LoginRefusedError).statusCode === 409);
-  await assert.rejects(r.logins.start({ tool: 'tailscale', method: 'key', secret: 'tskey-auth-x' }), LoginRefusedError);
+  await assert.rejects(r.logins.start({ tool: 'tailscale', method: 'key', secret: 'fake-ts-auth-key-x' }), LoginRefusedError);
   await assert.rejects(r.logins.signOut('tailscale'), LoginRefusedError);
   assert.deepEqual(r.calls(), [], 'the CLI never ran');
   assert.deepEqual(r.signOuts, []);

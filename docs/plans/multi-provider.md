@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T12:43:36.708551256Z
-updated_at: 2026-10-02T17:00:00Z
+updated_at: 2026-10-09T09:00:00Z
 tags:
     - plan
     - providers
@@ -2092,7 +2092,11 @@ already asked for this attempt.
         `limit-wait-expired`.
      `run.limitWaiting` is emitted when the wait starts.
 5. **Restart of Agentry.** `rotation.recover()` re-arms the timers of the `waiting` rows whose chat
-   this process restored. A claim whose `claimed_until` has passed may be taken again.
+   this process restored. A claim whose `claimed_until` has passed may be taken again. The chat's
+   record keeps `keepAlive: false`, so a replay run by a process that restored the chat ends its
+   process after the turn, as the one that started it would; before, the restored copy kept the
+   process up idle for ten minutes (found by the two-processes rotation test, which timed out
+   whenever the second process won the claim).
 
 **Per kind of work:**
 

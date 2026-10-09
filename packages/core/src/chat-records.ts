@@ -39,6 +39,12 @@ export interface ChatRecord {
   permissionPrompts: 'host' | 'none';
   /** The tool preset and MCP servers it was started with; a process that resumes it is given them again */
   tools?: ChatToolConfig | null;
+  /**
+   * Set when its processes end after each turn: a process that restores the chat (a restart, or a
+   * second wrapper on the same data) and runs it again, as a wait's replay does, ends it too instead
+   * of keeping it up idle
+   */
+  keepAlive?: false;
   /** Set on a chat of the Agentry assistant: every process of it, after a restart too, is confined again */
   agentryAssistant?: AgentryAssistantMarker | null;
   /** Messages the agent had not taken when this was written, and those lost before: a restart loses them, and says so */

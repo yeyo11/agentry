@@ -42,7 +42,11 @@ export const copilotManifest: ProviderManifest = {
     // the keychain: https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/authenticate-copilot-cli
     // Verified 2026-10-08 in the image: gh signed in by device code, Copilot never, and a prompt ran.
     credentialEnvSignsIn: true,
-    ghFallback: { hostname: 'github.com' },
+    // `copilot help environment` (1.0.93): COPILOT_GH_HOST, overriding GH_HOST, is the host Copilot
+    // authenticates against, github.com by default; set to a GitHub Enterprise Cloud with data
+    // residency host, the gh sign-in it falls back to is the one for that host (GitHub's page above:
+    // "verify the correct hostname is authenticated" with `gh auth status --hostname`).
+    ghFallback: { hostname: 'github.com', hostEnv: ['COPILOT_GH_HOST', 'GH_HOST'] },
     signInUrl: 'https://docs.github.com/copilot/how-tos/copilot-cli',
   },
   // Source: `copilot --help` lists `--acp` ("Start as Agent Client Protocol server").

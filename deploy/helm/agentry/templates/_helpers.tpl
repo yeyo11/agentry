@@ -33,3 +33,12 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- default (printf "%s-auth" (include "agentry.fullname" .)) .Values.auth.token.existingSecret -}}
 {{- end -}}
 {{- end -}}
+
+{{/* Name of the Secret holding AGENTRY_SECRET_KEY, or empty when none was given */}}
+{{- define "agentry.secretKeySecret" -}}
+{{- if .Values.secretKey.existingSecret -}}
+{{- .Values.secretKey.existingSecret -}}
+{{- else if .Values.secretKey.value -}}
+{{- printf "%s-secret-key" (include "agentry.fullname" .) -}}
+{{- end -}}
+{{- end -}}

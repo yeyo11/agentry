@@ -328,6 +328,31 @@ test('two Cores on one data directory replay a wait once', async () => {
   }
 });
 
+test('a wait replayed by a process that restored the chat ends the process after the turn, as its starter would', async () => {
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  const one = new Core(config);
+  let two: Core | null = null;
+  try {
+    const chat = one.runtime.start({ prompt: 'FAKE-LIMIT-ONCE', name: 'limited', keepAlive: false });
+    await one.runtime.exited(chat.id);
+    two = new Core(config);
+    const second = two;
+    await waitFor(() => second.runtime.get(chat.id) !== undefined);
+    const row = pastMove(chat.id, 'claude-code');
+    assert.equal(second.db.insertProviderMove(row), true);
+    // Only the restoring process recovers the wait, so it is the one that replays
+    second.rotation.recover();
+    await waitFor(() => second.db.providerMove(row.id)?.state === 'resumed');
+    await waitFor(() => (second.runtime.get(chat.id)?.executions.length ?? 0) >= 2, 20_000);
+    // Started with `keepAlive: false`, the chat's process ends after its turn rather than idling on
+    await waitFor(() => !second.runtime.get(chat.id)?.pid && second.runtime.get(chat.id)?.status !== 'busy', 20_000);
+    assert.notEqual(second.runtime.get(chat.id)?.status, 'idle');
+  } finally {
+    two?.shutdown();
+    one.shutdown();
+  }
+});
+
 test('automated work at a limit moves by the setting: handoff, re-pointed, once', async () => {
   const { chats, db, limited, repointed, close } = rig({ action: 'handoff', allowed: ['handoff', 'wait'], work, repoint: true });
   try {

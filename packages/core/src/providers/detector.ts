@@ -26,7 +26,7 @@ import { installDirs, resolveCommand } from './path.ts';
 import { limitAt, type HandshakeLimits, type ProviderLimits } from './limits.ts';
 import { DRIVER_TRANSPORTS, ProviderRegistry } from './registry.ts';
 import { childEnv } from '../child-env.ts';
-import { ghHasToken } from './gh-fallback.ts';
+import { ghAccount, ghFallbackHost, ghHasToken } from './gh-fallback.ts';
 
 /** One TTL for every provider: what a detection saw is served until it is this old */
 export const PROVIDERS_TTL_MS = 5 * 60 * 1000;
@@ -649,8 +649,11 @@ export class ProviderDetector {
       }
       // The last source the vendor documents: the GitHub CLI's sign-in, asked the way the CLI asks it
       const fallback = manifest.auth.ghFallback;
-      if (fallback && (await (this.deps.ghHasToken ?? ghHasToken)(fallback.hostname, env, this.probeTimeoutMs).catch(() => false))) {
-        return { kind: 'ok', account: null };
+      const host = fallback ? ghFallbackHost(fallback, env) : null;
+      if (host && (await (this.deps.ghHasToken ?? ghHasToken)(host, env, this.probeTimeoutMs).catch(() => false))) {
+        const account = await ghAccount(host, env, this.home, this.platform).catch(() => null);
+        // Named the way a Copilot account on another host is: the login, then where it signs in
+        return { kind: 'ok', account: account && host !== fallback?.hostname ? `${account}@${host}` : account };
       }
       return read;
     }

@@ -1,7 +1,7 @@
 {
   "command": "tailscale --socket=<tmp>/sock up --reset --hostname=agentry --auth-key=file:<tmp>/key",
   "stdin": "/dev/null",
-  "keyFile": "mode 0600, one line: a well-shaped auth key that does not exist (tskey-auth-kBADBADBAD-…)",
+  "keyFile": "mode 0600, one line: a well-shaped auth key that does not exist (tskey-auth- followed by invented characters)",
   "tty": false,
   "exitCode": 1,
   "stopped": "exited by itself",

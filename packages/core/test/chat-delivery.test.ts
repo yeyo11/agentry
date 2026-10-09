@@ -72,7 +72,9 @@ test('a prompt the CLI made of several messages yields one delivered event per m
   const r = rig();
   try {
     const chat = r.chats.start({ prompt: `HOLD ${join(r.scratch, 'f1')}` });
-    await until(() => r.ops().some((o) => o.op === 'turn'), 'the first turn');
+    // The fake logs its turn before it reads the prompt back: until the chat has heard the read-back,
+    // the first prompt is rightly still pending, ahead of the two below
+    await until(() => r.ops().some((o) => o.op === 'turn') && r.chats.get(chat.id)?.pending?.length === 0, 'the agent to take the first prompt');
     const a = r.chats.sendMessage(chat.id, 'also check the lint');
     const b = r.chats.sendMessage(chat.id, 'and the types');
     assert.deepEqual([a.taken, b.taken], ['written', 'written']);
@@ -236,7 +238,10 @@ test('S-10: two messages sent close together reach the agent in the order they w
       return read(id);
     };
     await Promise.all([core.chats.send(chat.id, { text: 'one' }), core.chats.send(chat.id, { text: 'two' })]);
-    const written = readFileSync(queueLog, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as Op).filter((o) => o.op === 'enqueue').map((o) => o.text);
+    // A send settles once the line is on the CLI's stdin, before the CLI has read it: the order is
+    // read off the CLI's own log once both lines reached it
+    const enqueued = () => readFileSync(queueLog, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as Op).filter((o) => o.op === 'enqueue').map((o) => o.text);
+    const written = await until(() => (enqueued().length >= 2 ? enqueued() : null), 'both messages to reach the CLI');
     assert.deepEqual(written, ['one', 'two']);
   } finally {
     writeFileSync(join(scratch, 'f1'), '');

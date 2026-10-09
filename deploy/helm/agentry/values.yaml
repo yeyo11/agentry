@@ -45,6 +45,18 @@ persistence:
 claude:
   existingSecret: ""
 
+# The key that seals the keys and tokens Agentry keeps for the CLIs (AGENTRY_SECRET_KEY, 32 bytes as
+# hex: `openssl rand -hex 32`). Without one the image makes a key on the first write and keeps it on
+# the data volume beside what it seals, which protects a copy of the files but not the volume.
+# Changing it later makes what the old key sealed read as absent: those keys are entered again.
+secretKey:
+  # Name of a Secret with the key under `key`. Preferred: the value never passes through Helm
+  existingSecret: ""
+  key: secret-key
+  # Or a plain value, which the chart stores in a Secret it creates. Ends up in the release
+  # history, so prefer existingSecret outside a test cluster.
+  value: ""
+
 # Authentication for the API. `none` is only for a cluster you fully trust: whoever reaches the
 # Service can run Claude on the account. Behind an Ingress, use `token` or `oidc`.
 auth:
@@ -73,7 +85,8 @@ auth:
 tunnel:
   enabled: true
 
-# Extra environment variables for the container (AGENTRY_MAX_CONCURRENT_RUNS, AGENTRY_CLI_UPDATE_CHECK...)
+# Extra environment variables for the container (AGENTRY_MAX_CONCURRENT_RUNS, AGENTRY_CLI_UPDATE_CHECK...).
+# Plain values: a secret goes in `secretKey`, `auth.token` or `claude.existingSecret` instead.
 env: {}
 
 # Seconds SIGTERM has to stop the chats and close the store before SIGKILL

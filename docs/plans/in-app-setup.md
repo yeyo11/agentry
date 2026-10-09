@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-08T19:00:00Z
-updated_at: 2026-10-09T10:00:00Z
+updated_at: 2026-10-09T16:00:00Z
 tags:
     - plan
     - setup
@@ -14,8 +14,8 @@ tags:
 ---
 # Plan: set up a fresh Agentry from Agentry
 
-Status: **built** on branch `fix/adjustments` (proposed 2026-10-08, every step done 2026-10-09; see
-[Outcome](#outcome)). The owner chose the options recorded under [Decisions](#decisions).
+Status: **landed** in #228, released in v0.37.0 (proposed 2026-10-08, every step done 2026-10-09,
+built on branch `fix/adjustments`; see [Outcome](#outcome)). The owner chose the options recorded under [Decisions](#decisions).
 
 ## Goal
 
@@ -207,7 +207,7 @@ and use the vault.
 
 ## Outcome
 
-Built on `fix/adjustments`, 2026-10-08 and 2026-10-09. A fresh Agentry, the Docker image above all,
+Built on `fix/adjustments`, 2026-10-08 and 2026-10-09, and merged into `main` in #228 (v0.37.0). A fresh Agentry, the Docker image above all,
 is set up from the browser: no step asks for a shell on the server.
 
 **What was built.**
@@ -253,17 +253,21 @@ e2e suites:
 - The sign-ins surviving a container replacement: the container removed and started again on the
   same named volumes, everything still signed in.
 
-**Left open.**
+**Closed after the release** (2026-10-09, [setup.md](../setup.md#copilot-in-a-container)):
 
-- **Copilot's account name** when it works only through gh: its state file lists no account and the
-  handshake may give none, so no account is named for it.
-- **GitHub Enterprise for the gh fallback.** Copilot's readiness and its Code sign-in use gh's
-  `github.com` sign-in only; an Enterprise host's Copilot is not covered.
+- **Copilot's account name** when it works only through gh: the row names gh's account on that host,
+  the `user:` gh writes in its `hosts.yml`, read with no network call and never the token beside it.
+- **GitHub Enterprise for the gh fallback.** `copilot help environment` documents `COPILOT_GH_HOST`
+  and `GH_HOST` as the host Copilot authenticates against (GitHub Enterprise Cloud with data
+  residency). Copilot's readiness asks gh about that host, and its Code signs gh in to it.
+- **The Helm chart's `AGENTRY_SECRET_KEY`** comes from a Secret: `secretKey.existingSecret` and
+  `secretKey.key`, or `secretKey.value` for a Secret the chart makes ([deploy.md](../deploy.md#kubernetes-helm)).
+
+**Left open.**
 - **Claude Code's sign-in.** `claude auth login` cannot be driven without a terminal (a local
   callback, or a code pasted at its prompt), so Claude Code takes the token `claude setup-token` makes
   on the person's own machine, or an API key; there is no device code for it.
-- The Helm chart has no Secret-backed field for `AGENTRY_SECRET_KEY` (its `env:` takes a plain
-  value), and a key beside the data protects a copy of the files, not the volume
+- A key beside the data protects a copy of the files, not the volume
   ([security-model.md](../security-model.md#known-limits)).
 
 ## Related
