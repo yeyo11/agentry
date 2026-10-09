@@ -16,6 +16,11 @@ tunnel.enabled is true: the pod runs a tailscaled of its own. Once it is signed 
 Remote access, anyone who can sign in to Agentry can serve this pod on that tailnet (`tailscale
 serve`), around the Service and the Ingress. It refuses to open while the auth mode is "none".
 {{- end }}
+{{- if not (include "agentry.secretKeySecret" .) }}
+
+No secretKey was given: the key that seals the credentials kept in the app is made on the data
+volume, beside what it seals. Pass one with secretKey.existingSecret to protect the volume too.
+{{- end }}
 {{- if not .Values.claude.existingSecret }}
 
 No Claude credential was given (claude.existingSecret): set one from the UI, under Settings > Account.
