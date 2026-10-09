@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T21:00:00Z
-updated_at: 2026-10-08T12:00:00Z
+updated_at: 2026-10-09T14:00:00Z
 tags:
     - plan
     - mcp
@@ -10,9 +10,9 @@ tags:
 ---
 # Plan: the format of what Agentry hands to a model
 
-Status: **built on 2026-10-08** (CW-33): compact JSON and chosen fields shipped, TOON not adopted. See
+Status: **built on 2026-10-08** (CW-33, landed in #221): compact JSON and chosen fields shipped, TOON not adopted. See
 [Outcome](#outcome). It belongs to the Agentry MCP server
-([[plans/agentry-mcp-server.md]], not yet on `main`), whose rule today is "one `text` content
+([[plans/agentry-mcp-server.md]], built), whose rule is "one `text` content
 holding compact JSON", and to anything else Agentry writes into a prompt: the orchestration
 planner's context, a worker's dependency results, the assistant's sources.
 

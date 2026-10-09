@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T23:59:00Z
-updated_at: 2026-10-01T19:20:00Z
+updated_at: 2026-10-09T14:00:00Z
 tags:
     - plan
     - spec
@@ -8,7 +8,7 @@ tags:
     - mcp
     - chats
     - api
-    - proposed
+    - built
 ---
 # Spec: Agentry's own MCP server, with read tools (CW-6)
 

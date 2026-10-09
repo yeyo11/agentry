@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-08T19:00:00Z
-updated_at: 2026-10-09T10:00:00Z
+updated_at: 2026-10-09T14:00:00Z
 tags:
     - plan
     - setup
@@ -14,8 +14,8 @@ tags:
 ---
 # Plan: set up a fresh Agentry from Agentry
 
-Status: **built** on branch `fix/adjustments` (proposed 2026-10-08, every step done 2026-10-09; see
-[Outcome](#outcome)). The owner chose the options recorded under [Decisions](#decisions).
+Status: **landed** in #228, released in v0.37.0 (proposed 2026-10-08, every step done 2026-10-09,
+built on branch `fix/adjustments`; see [Outcome](#outcome)). The owner chose the options recorded under [Decisions](#decisions).
 
 ## Goal
 
@@ -207,7 +207,7 @@ and use the vault.
 
 ## Outcome
 
-Built on `fix/adjustments`, 2026-10-08 and 2026-10-09. A fresh Agentry, the Docker image above all,
+Built on `fix/adjustments`, 2026-10-08 and 2026-10-09, and merged into `main` in #228 (v0.37.0). A fresh Agentry, the Docker image above all,
 is set up from the browser: no step asks for a shell on the server.
 
 **What was built.**
