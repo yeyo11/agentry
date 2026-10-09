@@ -35,7 +35,7 @@ What is and is not protected:
   scope being `user`, so importing `$HOME` as a project made `$HOME/.claude` a project root and
   `GET /config/files` handed out the account credential. A directory that is or contains the
   configuration directory can no longer be imported as a project at all.
-- **`credentials.json` and `auth.json` are mode 600 from the instant they exist**: the mode is given
+- **`secrets.json`, `secret.key` and `auth.json` are mode 600 from the instant they exist**: the mode is given
   to the temporary file that is renamed into place, instead of being applied after the fact, so
   there is no moment where they are world-readable.
 - **The UI bundle is served unframeable and unsniffable**, under a Content-Security-Policy that names
@@ -126,7 +126,10 @@ What is and is not protected:
   against your own account.
 - **Chats default to `bypassPermissions` inside the container**, so a chat does what it is asked
   without prompting. The container is the sandbox.
-- **Account credentials live in the data volume**, and the API can write them.
+- **Account credentials live in the data volume**, and the API can write them. Agentry's own are
+  sealed in `secrets.json`, but its key sits beside them in `secret.key` unless `AGENTRY_SECRET_KEY`
+  comes from elsewhere, and the vendors' CLIs (gh, glab, Codex, tailscaled) keep theirs in plain
+  text there where no keyring exists ([docs/security-model.md](docs/security-model.md)).
 - **Per-chat MCP config files hold a server's real `env` and `headers`.** They are mode 600 in a
   mode 700 directory of the data volume.
 - **A refusal raised deep in the core can still name a file.** The error handler returns the text of a
