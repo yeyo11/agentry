@@ -6447,9 +6447,11 @@ export interface SetupToolMethods {
   /** Whether the vendor documents a device-code sign-in Agentry runs */
   device: boolean;
   /**
-   * The device sign-in is another tool's: Copilot's Code signs the GitHub CLI in to github.com,
+   * The device sign-in is another tool's: Copilot's Code signs the GitHub CLI in to the host Copilot
+   * uses (github.com, or the GitHub Enterprise Cloud host `COPILOT_GH_HOST` or `GH_HOST` names),
    * whose token Copilot falls back to (GitHub's documented order). `POST /setup/logins` with the
-   * tool's `device` starts that tool's session, and the session names it. Null for every other tool.
+   * tool's `device` starts that tool's session, and the session names it. `host` is null when that
+   * variable names no host, and the sign-in is then refused. Null for every other tool.
    */
   deviceVia: { tool: SetupTool; host: string | null } | null;
   /** Whether a host name is part of the sign-in: `gh` and `glab` name one, YouTrack an address */

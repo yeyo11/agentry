@@ -1,4 +1,5 @@
 import type { ProviderCapability, ProviderId, ProviderTransport } from '@agentry/shared';
+import type { GhFallback } from './gh-fallback.ts';
 
 /** A directory a provider keeps its state in, and the variable that moves it. */
 export interface ProviderConfigHome {
@@ -79,9 +80,11 @@ export interface ProviderManifest {
     /**
      * The GitHub CLI's sign-in to this host is the CLI's last documented credential source (Copilot
      * runs `gh auth token`). Detection runs the same command, with a timeout, and reads only its exit
-     * code and whether it printed anything: the token itself is never kept.
+     * code and whether it printed anything: the token itself is never kept. The host is `hostname`
+     * unless one of `hostEnv` names another (GitHub Enterprise Cloud with data residency); the account
+     * is the `user:` gh wrote for that host in its hosts.yml.
      */
-    ghFallback?: { hostname: string };
+    ghFallback?: GhFallback;
     /** The vendor's sign-in page, or its docs on signing in */
     signInUrl: string;
   };

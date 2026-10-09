@@ -13,7 +13,7 @@ import { killGroup } from '../processes.ts';
 import type { SecretVault } from '../secret-vault.ts';
 import type { YoutrackCredentialStore } from '../trackers/youtrack/credentials.ts';
 import { DEVICE_PATTERNS, readDeviceLine, type DevicePattern } from './device-patterns.ts';
-import { isSetupTool, TOOL_LOGINS } from './methods.ts';
+import { deviceViaOf, isSetupTool, TOOL_LOGINS } from './methods.ts';
 
 /** How long a device sign-in waits for the person, unless the code says less */
 export const LOGIN_LIFETIME_MS = 15 * 60 * 1000;
@@ -116,9 +116,10 @@ export class LoginService {
   async start(input: unknown): Promise<LoginSession> {
     let request = this.parse(input);
     this.refuse(request.tool);
-    const via = request.method === 'device' ? TOOL_LOGINS[request.tool].methods.deviceVia : null;
+    const via = request.method === 'device' ? deviceViaOf(request.tool, this.deps.baseEnv ?? process.env) : null;
     if (via) {
-      request = { tool: via.tool, method: 'device', ...(via.host ? { host: via.host } : {}) };
+      if (via.host === null) throw new LoginInputError('COPILOT_GH_HOST or GH_HOST does not name a host, so no GitHub CLI sign-in can stand in for Copilot\'s');
+      request = { tool: via.tool, method: 'device', host: via.host };
       this.refuse(request.tool);
     }
     const login = TOOL_LOGINS[request.tool];

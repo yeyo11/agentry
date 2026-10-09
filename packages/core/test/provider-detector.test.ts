@@ -77,6 +77,21 @@ const COPILOT_CONFIG = `// User settings belong in settings.json.
 }
 `;
 
+/** gh's hosts.yml with two hosts, and a token gh keeps in plain text where it has no keyring */
+const GH_HOSTS = `github.com:
+    git_protocol: https
+    users:
+        monalisa:
+        octocat:
+            oauth_token: gho_plainTextTokenNeverKept
+    user: octocat
+    oauth_token: gho_plainTextTokenNeverKept
+acme.ghe.com:
+    users:
+        hubot:
+    user: hubot
+`;
+
 async function copilotSignedIn(dir: string, text: string): Promise<void> {
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, 'config.json'), text);
@@ -213,6 +228,41 @@ describe('ProviderDetector', () => {
     await fake('gh', 'while :; do :; done');
     const slow = await statusOf(detector({ probeTimeoutMs: 300 }), 'copilot');
     assert.equal(slow.state, 'signed-out');
+  });
+
+  it('names the account Copilot uses through gh from the user gh wrote for the host, and never the token beside it', async () => {
+    await fake('copilot', 'echo "GitHub Copilot CLI 1.0.93."');
+    await fake('gh', 'echo gho_secretTokenNeverKept');
+    const hosts = (dir: string) => mkdir(dir, { recursive: true }).then(() => writeFile(join(dir, 'hosts.yml'), GH_HOSTS));
+    await hosts(join(home, '.config', 'gh'));
+    const ready = await statusOf(detector(), 'copilot');
+    assert.deepEqual([ready.state, ready.account], ['ready', 'octocat']);
+    assert.ok(!JSON.stringify(ready).includes('plainTextTokenNeverKept'));
+
+    const moved = join(root, `gh-config${n}`);
+    await hosts(moved);
+    await rm(join(home, '.config', 'gh'), { recursive: true });
+    assert.equal((await statusOf(detector(), 'copilot')).account, null, 'no hosts.yml: signed in, with no name');
+    assert.equal((await statusOf(detector({ env: { GH_CONFIG_DIR: moved } }), 'copilot')).account, 'octocat', 'GH_CONFIG_DIR moves the file');
+    assert.equal((await statusOf(detector({ env: { XDG_CONFIG_HOME: root, GH_CONFIG_DIR: '' } }), 'copilot')).account, null, 'XDG_CONFIG_HOME/gh is read when GH_CONFIG_DIR is unset');
+  });
+
+  it('asks gh about the GitHub Enterprise Cloud host COPILOT_GH_HOST or GH_HOST names, and names the account with its host', async () => {
+    await fake('copilot', 'echo "GitHub Copilot CLI 1.0.93."');
+    const calls = join(root, `gh-calls${n}`);
+    await fake('gh', `echo "$*" >> "${calls}"\necho gho_x`);
+    await mkdir(join(home, '.config', 'gh'), { recursive: true });
+    await writeFile(join(home, '.config', 'gh', 'hosts.yml'), GH_HOSTS);
+
+    const ghe = await statusOf(detector({ env: { GH_HOST: 'acme.ghe.com' } }), 'copilot');
+    assert.deepEqual([ghe.state, ghe.account], ['ready', 'hubot@acme.ghe.com']);
+    await statusOf(detector({ env: { GH_HOST: 'ghes.example.com', COPILOT_GH_HOST: 'https://acme.ghe.com' } }), 'copilot');
+    assert.deepEqual([...new Set(readFileSync(calls, 'utf8').trim().split('\n'))], ['auth token --hostname acme.ghe.com'], 'COPILOT_GH_HOST overrides GH_HOST');
+
+    const enterprise = await statusOf(detector({ env: { GH_HOST: 'acme.ghe.com', GH_ENTERPRISE_TOKEN: 'x' } }), 'copilot');
+    assert.equal(enterprise.account, null, 'gh answers with the enterprise token, whose account the file does not name');
+    const bad = await statusOf(detector({ env: { COPILOT_GH_HOST: '--hostname' } }), 'copilot');
+    assert.equal(bad.state, 'signed-out', 'a variable that names no host has no gh sign-in to stand in');
   });
 
   it('asks gh only for a provider whose vendor documents it as a credential source', async () => {

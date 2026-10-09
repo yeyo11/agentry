@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:00:00Z
-updated_at: 2026-10-09T10:00:00Z
+updated_at: 2026-10-09T16:00:00Z
 tags:
     - providers
     - detection
@@ -173,9 +173,12 @@ found (an override included), and spends nothing:
   `lastLoggedInUser` (`{ host, login }`, recorded on 1.0.91). An account listed is `ready` and named
   on the status (`login`, or `login@host` off github.com). With no account listed, Copilot is still
   `ready` when `COPILOT_GITHUB_TOKEN`, `GH_TOKEN` or `GITHUB_TOKEN` is in its environment (the vault's
-  included: the manifest's `credentialEnvSignsIn`), or when the GitHub CLI holds a github.com token
-  (`gh auth token --hostname github.com` exits 0 and prints something; the manifest's `ghFallback`,
-  run by `providers/gh-fallback.ts` with the probe timeout, the token never kept). Both are what
+  included: the manifest's `credentialEnvSignsIn`), or when the GitHub CLI holds a token for
+  Copilot's GitHub host (`gh auth token --hostname <host>` exits 0 and prints something; the
+  manifest's `ghFallback`, run by `providers/gh-fallback.ts` with the probe timeout, the token never
+  kept). The host is `COPILOT_GH_HOST`, else `GH_HOST`, else github.com (`copilot help environment`),
+  and the account named is the `user:` gh wrote for that host in its `hosts.yml` ([[setup.md]],
+  "Account" and "GitHub Enterprise"). Both are what
   GitHub documents for containers, where Copilot's own login cannot store a token without a
   keychain (2026-10-08, [[setup.md]], "Copilot in a container"). Otherwise it is `signed-out`. A
   stored token is not validated for free, so one that was revoked reads `ready` until a chat fails on it.

@@ -121,12 +121,21 @@ test('the methods table offers a device sign-in where the vendor documents one',
 });
 
 test('Copilot\'s key is kept for its environment and its Code is gh\'s sign-in to github.com, since its own login cannot store a token without a keychain', () => {
-  const copilot = setupMethods().find((m) => m.tool === 'copilot');
+  const copilot = setupMethods({}).find((m) => m.tool === 'copilot');
   assert.ok(copilot);
   assert.deepEqual([copilot.key, copilot.variables, copilot.device, copilot.deviceVia], ['env', ['COPILOT_GITHUB_TOKEN'], true, { tool: 'gh', host: 'github.com' }]);
   // Sign out forgets the kept key only: Copilot's own state and gh's are not Agentry's to undo
   assert.deepEqual([copilot.signOut, copilot.signOutKeyOnly], [true, true]);
-  assert.equal(setupMethods().filter((m) => m.deviceVia !== null).length, 1, 'no other tool lends its sign-in');
+  assert.equal(setupMethods({}).filter((m) => m.deviceVia !== null).length, 1, 'no other tool lends its sign-in');
+});
+
+test('Copilot\'s Code targets the GitHub Enterprise Cloud host COPILOT_GH_HOST or GH_HOST names, the one Copilot asks gh about', () => {
+  const via = (env: NodeJS.ProcessEnv) => setupMethods(env).find((m) => m.tool === 'copilot')?.deviceVia;
+  assert.deepEqual(via({ GH_HOST: 'acme.ghe.com' }), { tool: 'gh', host: 'acme.ghe.com' });
+  assert.deepEqual(via({ GH_HOST: 'ghes.example.com', COPILOT_GH_HOST: 'https://Acme.ghe.com/' }), { tool: 'gh', host: 'acme.ghe.com' }, 'COPILOT_GH_HOST wins, given as a URL like `copilot login --host`');
+  assert.deepEqual(via({ GH_HOST: '  ' }), { tool: 'gh', host: 'github.com' }, 'a blank variable names nothing');
+  assert.deepEqual(via({ COPILOT_GH_HOST: '--not a host' }), { tool: 'gh', host: null });
+  assert.equal(setupMethods({ GH_HOST: 'acme.ghe.com' }).find((m) => m.tool === 'gh')?.defaultHost, 'github.com', 'gh\'s own row keeps its default');
 });
 
 // ---------- device sign-in ----------
@@ -161,6 +170,17 @@ test('Copilot\'s Code starts gh\'s device sign-in to github.com, the session gh\
   const fromCopilot = await hang.logins.start({ tool: 'copilot', method: 'device' });
   assert.equal(hang.logins.get(fromGh.id)?.state, 'cancelled');
   hang.logins.cancel(fromCopilot.id);
+});
+
+test('Copilot\'s Code signs gh in to the host GH_HOST names, and is refused when it names no host', async () => {
+  const r = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('gh-web.stderr'), FAKE_LOGIN_STDERR: '1', GH_HOST: 'acme.ghe.com' } });
+  const started = await r.logins.start({ tool: 'copilot', method: 'device' });
+  assert.deepEqual([started.tool, started.host], ['gh', 'acme.ghe.com']);
+  await until(() => ended(r, started.id), 'gh');
+  assert.deepEqual(readRecord(r).argv, ['auth', 'login', '--web', '--hostname', 'acme.ghe.com']);
+  const bad = rig({ fake: { COPILOT_GH_HOST: '-x' } });
+  await assert.rejects(bad.logins.start({ tool: 'copilot', method: 'device' }), LoginInputError);
+  assert.equal(existsSync(bad.record), false, 'nothing ran');
 });
 
 test('a code printed on stderr counts too (glab), and gh and glab name their host', async () => {

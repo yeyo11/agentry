@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-08T19:00:00Z
-updated_at: 2026-10-09T14:00:00Z
+updated_at: 2026-10-09T16:00:00Z
 tags:
     - plan
     - setup
@@ -253,12 +253,15 @@ e2e suites:
 - The sign-ins surviving a container replacement: the container removed and started again on the
   same named volumes, everything still signed in.
 
-**Left open.**
+**Closed after the release** (2026-10-09, [setup.md](../setup.md#copilot-in-a-container)):
 
-- **Copilot's account name** when it works only through gh: its state file lists no account and the
-  handshake may give none, so no account is named for it.
-- **GitHub Enterprise for the gh fallback.** Copilot's readiness and its Code sign-in use gh's
-  `github.com` sign-in only; an Enterprise host's Copilot is not covered.
+- **Copilot's account name** when it works only through gh: the row names gh's account on that host,
+  the `user:` gh writes in its `hosts.yml`, read with no network call and never the token beside it.
+- **GitHub Enterprise for the gh fallback.** `copilot help environment` documents `COPILOT_GH_HOST`
+  and `GH_HOST` as the host Copilot authenticates against (GitHub Enterprise Cloud with data
+  residency). Copilot's readiness asks gh about that host, and its Code signs gh in to it.
+
+**Left open.**
 - **Claude Code's sign-in.** `claude auth login` cannot be driven without a terminal (a local
   callback, or a code pasted at its prompt), so Claude Code takes the token `claude setup-token` makes
   on the person's own machine, or an API key; there is no device code for it.

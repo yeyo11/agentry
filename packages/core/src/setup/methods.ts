@@ -1,4 +1,6 @@
 import type { SetupTool, SetupToolMethods } from '@agentry/shared';
+import { copilotManifest } from '../providers/copilot/manifest.ts';
+import { ghFallbackHost } from '../providers/gh-fallback.ts';
 
 /**
  * How each tool signs in, and only through what its vendor ships for programs (the one rule). The
@@ -126,11 +128,25 @@ export const TOOL_LOGINS: Readonly<Record<SetupTool, ToolLogin>> = {
   },
 };
 
-export function setupMethods(): SetupToolMethods[] {
+/**
+ * The tool a device sign-in really runs, and the host it signs in to, for the environment the agent
+ * starts with. Copilot's is gh's, on the host Copilot asks gh about: github.com, or the GitHub
+ * Enterprise Cloud host COPILOT_GH_HOST or GH_HOST names (`copilot help environment`), so the
+ * sign-in it lends is the one Copilot will read. A host of null there means the variable names no
+ * host: no gh sign-in can stand in for it. Null for a tool that signs itself in.
+ */
+export function deviceViaOf(tool: SetupTool, env: NodeJS.ProcessEnv): SetupToolMethods['deviceVia'] {
+  const via = TOOL_LOGINS[tool].methods.deviceVia;
+  if (!via) return null;
+  const fallback = tool === 'copilot' ? copilotManifest.auth.ghFallback : undefined;
+  return { tool: via.tool, host: fallback ? ghFallbackHost(fallback, env) : via.host };
+}
+
+export function setupMethods(env: NodeJS.ProcessEnv = process.env): SetupToolMethods[] {
   return Object.values(TOOL_LOGINS).map((login) => ({
     ...login.methods,
     variables: [...login.methods.variables],
-    deviceVia: login.methods.deviceVia ? { ...login.methods.deviceVia } : null,
+    deviceVia: deviceViaOf(login.methods.tool, env),
   }));
 }
 

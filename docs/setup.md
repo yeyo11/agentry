@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-08T21:00:00Z
-updated_at: 2026-10-09T10:00:00Z
+updated_at: 2026-10-09T16:00:00Z
 tags:
     - setup
     - security
@@ -96,7 +96,7 @@ fallback works at run time, not only in detection.
 | `claude-code` | vault, `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`, one at a time | none | vault cleared, then `claude auth logout` |
 | `codex` | `codex login --with-api-key`, stdin | `codex login --device-auth` | `codex logout` |
 | `gemini` | vault, `GEMINI_API_KEY` | none | vault cleared |
-| `copilot` | vault, `COPILOT_GITHUB_TOKEN` (a classic `ghp_` token is refused) | gh's, on github.com (`deviceVia`) | vault cleared (`signOutKeyOnly`) |
+| `copilot` | vault, `COPILOT_GITHUB_TOKEN` (a classic `ghp_` token is refused) | gh's, on github.com or Copilot's GitHub host (`deviceVia`) | vault cleared (`signOutKeyOnly`) |
 | `opencode` | vault, one of `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY` | none | vault cleared |
 | `gh` | `gh auth login --with-token --hostname H`, stdin | `gh auth login --web --hostname H` | `gh auth logout --hostname H` |
 | `glab` | `glab auth login --hostname H --stdin` | `glab auth login --device --hostname H` | `glab auth logout --hostname H` |
@@ -132,18 +132,40 @@ of the Copilot and gh apps, and not classic `ghp_` tokens. So:
   `COPILOT_GITHUB_TOKEN`, like Gemini's key, never in argv. A `ghp_` token is refused with `400` and
   a reason, and the panel says so before sending it. Sign out forgets it.
 - **Code.** Copilot no longer runs its own `--device-code`. `POST /setup/logins` with
-  `{ tool: 'copilot', method: 'device' }` starts gh's device sign-in to github.com, the same session
+  `{ tool: 'copilot', method: 'device' }` starts gh's device sign-in to Copilot's GitHub host
+  (github.com unless the environment names another, see **GitHub Enterprise** below), the same session
   the GitHub row would start (one live sign-in per tool and host), and answers it, `tool: 'gh'`. The
   panel says "Copilot uses your GitHub sign-in (gh)". When it succeeds, Copilot's readiness is read
   again with gh's.
 - **Detection.** Copilot reads `ready` when its state file lists an account (a keychain-backed
   `copilot login`, as on a desktop), when one of its three variables is in its environment, vault
-  included, or when `gh auth token --hostname github.com` succeeds with something printed. That last
+  included, or when `gh auth token --hostname <host>` succeeds with something printed. That last
   check runs the `gh` on the PATH Copilot gets, through `hosts/exec.ts` (gh's environment, a process
   group, the probe timeout, no retry), and reads only the exit code and whether the output is empty:
-  the token is never kept or logged (`providers/gh-fallback.ts`). The account is the handshake's,
-  when it gives one. A sign-in or sign-out of gh on github.com from Agentry refreshes Copilot at once;
-  one made in a terminal is seen at the next detection (`PROVIDERS_TTL_MS`).
+  the token is never kept or logged (`providers/gh-fallback.ts`). A sign-in or sign-out of gh on that
+  host from Agentry refreshes Copilot at once; one made in a terminal is seen at the next detection
+  (`PROVIDERS_TTL_MS`).
+- **Account.** When Copilot works through gh, its row names gh's account on that host: the `user:`
+  gh writes for each host in `hosts.yml`, in its config directory (`GH_CONFIG_DIR`, else
+  `$XDG_CONFIG_HOME/gh`, else `~/.config/gh`, as `gh help environment` orders them;
+  `/data/provider-homes/gh` in the image). Reading the file the CLI writes costs no network call;
+  `gh auth status --json hosts` would test every account's token online, so it is not used here. Only
+  that one field of the host's block is read, never the token gh may keep beside it. A host other than
+  github.com is named `login@host`, like a Copilot account off github.com. No account is named when
+  the file or the host is missing, or when `GH_ENTERPRISE_TOKEN` or `GITHUB_ENTERPRISE_TOKEN` answers
+  for an Enterprise host instead of the stored sign-in. The row says nothing about the account coming
+  from gh: the setup has no place that names a credential's source, and the account is the same one.
+- **GitHub Enterprise.** `copilot help environment` (1.0.93) documents `COPILOT_GH_HOST` ("GitHub
+  hostname used only by Copilot CLI for authentication and API requests, overriding GH_HOST") and
+  `GH_HOST` (default `github.com`; set it to a GitHub Enterprise Cloud with data residency host such
+  as `mycompany.ghe.com`), and GitHub's page tells an Enterprise Cloud user of the gh fallback to
+  "verify the correct hostname is authenticated" with `gh auth status --hostname`. So the host Copilot
+  asks gh about is `COPILOT_GH_HOST`, else `GH_HOST`, else `github.com`, read from the environment
+  Copilot's processes get (a URL such as `https://acme.ghe.com`, the form `copilot login --host`
+  takes, is read as its host). Detection runs `gh auth token --hostname` for that host, and Copilot's
+  Code signs gh in to it (`deviceVia.host` in `GET /setup`). A variable that names no host leaves
+  Copilot with no gh sign-in to read, and its Code is refused with `400`. Copilot's own
+  `copilot login --host` on a desktop keeps working as before, through its state file.
 - **Outside Docker** the same rules hold and change nothing: a keychain-backed `copilot login` still
   counts first.
 

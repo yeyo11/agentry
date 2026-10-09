@@ -84,7 +84,7 @@ function Panel({ tool, label, host = null, layout = 'inline', closable = false, 
   const { session } = login;
   const failure = failureOf(session);
   const hostName = hostDraft.trim();
-  // Copilot's Code is gh's sign-in to github.com: the panel names who is really asked for a code
+  // Copilot's Code is gh's sign-in to the host Copilot uses: the panel names who is really asked for a code
   const via = methods.deviceVia;
   const viaLabel = via ? (VIA_LABEL[via.tool] ?? via.tool) : null;
 
