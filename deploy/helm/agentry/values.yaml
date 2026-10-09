@@ -6,7 +6,7 @@ image:
   # Change both together or neither: a moving tag (`latest`, `edge`) needs pullPolicy: Always, or a
   # node that already holds the image serves yesterday's build - and a security fix - forever, while
   # a node scheduled fresh pulls a different one under the same name.
-  tag: "0.36.1" # x-release-please-version
+  tag: "0.37.0" # x-release-please-version
   pullPolicy: IfNotPresent
 
 # The port the API listens on inside the pod and the one the Service exposes

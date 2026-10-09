@@ -3,6 +3,13 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.37.0](https://github.com/yeyo11/agentry/compare/v0.36.1...v0.37.0) (2026-10-09)
+
+
+### Features
+
+* **setup:** set up a fresh Agentry from Agentry, with the adjustments made on the way ([#228](https://github.com/yeyo11/agentry/issues/228)) ([7dd2e67](https://github.com/yeyo11/agentry/commit/7dd2e67b0c41e10c19efe465a837d4397ec023c9))
+
 ## [0.36.1](https://github.com/yeyo11/agentry/compare/v0.36.0...v0.36.1) (2026-10-08)
 
 
