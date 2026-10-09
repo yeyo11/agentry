@@ -43,7 +43,7 @@
     "@agentry/shared": "workspace:*",
     "@agentry/ui": "workspace:*",
     "@lezer/highlight": "^1.2.5",
-    "@radix-ui/react-popover": "^1.1.23",
+    "@radix-ui/react-popover": "^1.2.0",
     "@tanstack/highlight": "1.0.0",
     "@tanstack/markdown": "1.0.0",
     "@tanstack/react-virtual": "^3.14.13",
