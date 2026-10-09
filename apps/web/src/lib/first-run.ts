@@ -23,7 +23,12 @@ export type SetupGate = { state: 'pending' | 'hidden' } | { state: 'shown'; fini
  */
 export function useSetupGate(): SetupGate {
   const queryClient = useQueryClient();
-  const setup = useQuery({ queryKey: keys.setup, queryFn: ({ signal }) => api.setup({ signal }) });
+  // `setupSeen` comes from the app settings, a file read; `GET /setup` probes every tool, which can
+  // take seconds on a cold start, and every start after the first would wait on it for nothing. So
+  // the settings decide, and the setup state is read only when the assistant is about to show.
+  const settings = useQuery({ queryKey: keys.appSettings, queryFn: api.appSettings });
+  const seen = settings.data?.setupSeen;
+  const setup = useQuery({ queryKey: keys.setup, queryFn: ({ signal }) => api.setup({ signal }), enabled: seen === false });
   const [dismissed, setDismissed] = useState(false);
   const save = useMutation({
     mutationFn: api.markSetupSeen,
@@ -33,7 +38,9 @@ export function useSetupGate(): SetupGate {
     },
   });
 
-  if (dismissed || setup.isError) return { state: 'hidden' };
+  if (dismissed || settings.isError || setup.isError) return { state: 'hidden' };
+  if (seen === undefined) return { state: 'pending' };
+  if (seen) return { state: 'hidden' };
   if (!setup.data) return { state: 'pending' };
   if (!shouldShowSetup(setup.data)) return { state: 'hidden' };
   return {
