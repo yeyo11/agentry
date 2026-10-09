@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseStored, pickValues, reconcile, sameValues, stillCurrent, storageKey, withValues } from '../src/lib/list-params.ts';
+import { awaitedValues, parseStored, pickValues, reconcile, sameValues, sendSettled, stillCurrent, type Sent, storageKey, withValues } from '../src/lib/list-params.ts';
 
 const OWNED = ['q', 'state', 'sort'] as const;
 
@@ -71,4 +71,24 @@ test('list params: a link’s values are not stored over a reset or a change mad
   assert.equal(stillCurrent(linked, {}), false);
   // A change on the page stored its own values first
   assert.equal(stillCurrent(linked, { q: 'typed' }), false);
+});
+
+test('list params: the render a patch causes shows what it sent, not the address it is replacing', () => {
+  // "All" on Chats: storage already holds no state, the address still says `state=working`
+  const sent = { values: {}, earlier: [{ state: 'working' }] };
+  assert.deepEqual(awaitedValues(sent, { state: 'working' }), {});
+  // Once the address shows what was sent, it is reconciled as usual
+  assert.equal(awaitedValues(sent, {}), null);
+  // An address no send left came from elsewhere (Back, a link) and wins
+  assert.equal(awaitedValues(sent, { state: 'idle' }), null);
+  assert.equal(awaitedValues(null, { state: 'working' }), null);
+});
+
+test('list params: sends made one after another are awaited until the last one lands', () => {
+  // Typed `a`, then cleared it again, before either navigation landed
+  const sent: Sent = { values: {}, earlier: [{}, { q: 'a' }] };
+  assert.deepEqual(awaitedValues(sent, { q: 'a' }), {});
+  assert.equal(sendSettled(sent, { q: 'a' }), false);
+  assert.equal(sendSettled(sent, {}), true);
+  assert.equal(sendSettled(sent, { q: 'elsewhere' }), true);
 });

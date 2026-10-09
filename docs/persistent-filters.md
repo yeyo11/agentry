@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T12:00:00Z
-updated_at: 2026-10-08T12:00:00Z
+updated_at: 2026-10-09T12:00:00Z
 tags:
     - web
     - lists
@@ -51,6 +51,15 @@ Views of a page are not filters and are not kept: `tab=templates`, `new`, `view`
   taken, and the effect drops it when storage holds something else by then, whether it was bringing
   stored filters back or storing the ones a link carried. A reset or a change also makes the next
   render read storage again, even when the address did not move.
+- **What a patch or a reset sends is awaited until the address shows it.** The app runs on a data
+  router, which applies a navigation after the render the change causes: that render still reads
+  the old address, against storage that already holds the new values. Reconciled as usual, the old
+  address looked set on purpose and was stored over the change, and a change to no parameters
+  ("All", taking a chip off, "Show them all", "Clear filters") then had the stored values brought
+  back. The hook remembers what it sent (from a patch, a reset, or bringing stored values back) and
+  the addresses those sends are replacing; while the address is one of those, the page shows what
+  was sent and nothing is stored. It forgets them when a navigation lands on what was sent, or on an
+  address none of them left (Back, a link), which is then reconciled as usual.
 
 ## Decisions
 
