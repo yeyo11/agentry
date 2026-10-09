@@ -31,7 +31,9 @@ export default async ({ page, api, check, releases }) => {
     const text = await page.text(`[data-testid=update-docker-${way}]`);
     check(text.includes(command), `the ${way} way offers "${command}": ${text}`);
   }
-  check(!(await page.eval(`return !!document.querySelector(${JSON.stringify(CARD)} + ' .alert')`)), 'a page on this machine is not told to ask whoever runs the server');
+  // Only the steps' own alert: the card may also carry the storage warning, which the harness raises
+  // because it says it is a Docker install while its folders are not on named volumes
+  check(!(await page.eval(`return !!document.querySelector(${JSON.stringify(`${CARD} [data-testid^="update-steps-"] .alert`)})`)), 'a page on this machine is not told to ask whoever runs the server');
   const notes = await page.eval(`return [...document.querySelectorAll(${JSON.stringify(`${CARD} a`)})].map((a) => a.href)`);
   check(notes.includes(releases.url), `the card links the release notes: ${notes.join(', ')}`);
 
