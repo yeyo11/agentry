@@ -3,6 +3,14 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.37.1](https://github.com/yeyo11/agentry/compare/v0.37.0...v0.37.1) (2026-10-09)
+
+
+### Bug fixes
+
+* **chat-ui:** a followed chat goes back to its end after a scroll nobody made; and the verification test's pid race ([#234](https://github.com/yeyo11/agentry/issues/234)) ([30d2e7e](https://github.com/yeyo11/agentry/commit/30d2e7e0644bf3f4cb40a72a4aa34f256629be78))
+* the loose ends after 0.37.0: Copilot through gh, Helm's secret key, Schedules, and four flaky tests ([#230](https://github.com/yeyo11/agentry/issues/230)) ([bc57736](https://github.com/yeyo11/agentry/commit/bc577362dd1cd36895bf10986f3f89ab8ec69903))
+
 ## [0.37.0](https://github.com/yeyo11/agentry/compare/v0.36.1...v0.37.0) (2026-10-09)
 
 
