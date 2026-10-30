@@ -20,8 +20,8 @@
     "dist:linux": "pnpm --filter @agentry/web build && pnpm --filter @agentry/api bundle && pnpm run build && electron-builder --linux --config electron-builder.yml --publish never"
   },
   "devDependencies": {
-    "electron": "^44.5.1",
-    "electron-builder": "^26.15.3",
+    "electron": "^45.0.0",
+    "electron-builder": "^26.18.0",
     "esbuild": "^0.28.2"
   },
   "dependencies": {
